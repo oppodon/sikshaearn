@@ -1,47 +1,40 @@
-import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { type NextRequest, NextResponse } from "next/server"
 import { connectToDatabase } from "@/lib/mongodb"
 import Transaction from "@/models/Transaction"
-import User from "@/models/User"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { isValidObjectId } from "mongoose"
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions)
 
-    if (!session?.user) {
+    if (!session) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
     }
 
     await connectToDatabase()
+    const { id } = params
 
-    // Get transaction with package details
-    const transaction = await Transaction.findById(params.id)
-      .populate("package", "title description thumbnail price")
-      .lean()
+    if (!isValidObjectId(id)) {
+      return NextResponse.json({ success: false, error: "Invalid transaction ID" }, { status: 400 })
+    }
+
+    // Find transaction
+    const transaction = await Transaction.findById(id).populate("package", "title slug price").lean()
 
     if (!transaction) {
       return NextResponse.json({ success: false, error: "Transaction not found" }, { status: 404 })
     }
 
-    // Verify that the transaction belongs to the user or the user is an admin
+    // Verify that the transaction belongs to the user or user is admin
     if (transaction.user.toString() !== session.user.id && session.user.role !== "admin") {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
     }
 
-    // Get user details for admin view
-    if (session.user.role === "admin") {
-      const user = await User.findById(transaction.user).select("name email").lean()
-      transaction.userName = user?.name || "Unknown"
-      transaction.userEmail = user?.email || "Unknown"
-    }
-
     return NextResponse.json({ success: true, transaction }, { status: 200 })
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error fetching transaction:", error)
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch transaction. Please try again." },
-      { status: 500 },
-    )
+    return NextResponse.json({ success: false, error: error.message || "Failed to fetch transaction" }, { status: 500 })
   }
 }

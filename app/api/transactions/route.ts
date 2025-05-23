@@ -52,13 +52,13 @@ export async function POST(req: NextRequest) {
 
     const packageId = formData.get("packageId") as string
     const amount = formData.get("amount") as string
-    const paymentMethod = formData.get("paymentMethod") as string
+    const paymentMethodId = formData.get("paymentMethodId") as string
     const referrerId = formData.get("referrerId") as string
     const paymentProofFile = formData.get("paymentProof") as File
 
-    console.log("Form data:", { packageId, amount, paymentMethod, referrerId, hasPaymentProof: !!paymentProofFile })
+    console.log("Form data:", { packageId, amount, paymentMethodId, referrerId, hasPaymentProof: !!paymentProofFile })
 
-    if (!packageId || !amount || !paymentMethod) {
+    if (!packageId || !amount) {
       console.log("Missing required fields")
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 })
     }
@@ -138,12 +138,12 @@ export async function POST(req: NextRequest) {
 
     console.log("Creating transaction...")
 
-    // Create transaction
+    // Create transaction with the original fields
     const transaction = await Transaction.create({
       user: session.user.id,
       package: packageId,
       amount: Number.parseFloat(amount),
-      paymentMethod,
+      paymentMethod: paymentMethodId ? "bank_transfer" : "bank_transfer", // Default to bank_transfer
       paymentProof: paymentProofUrl,
       status: "pending",
       affiliateId,

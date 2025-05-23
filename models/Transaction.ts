@@ -1,46 +1,40 @@
 import mongoose, { Schema, type Document } from "mongoose"
 
-export interface ITransaction extends Document {
+export interface TransactionDocument extends Document {
   user: mongoose.Types.ObjectId
   package: mongoose.Types.ObjectId
   amount: number
-  paymentMethod: "bank_transfer" | "esewa" | "khalti"
-  paymentProof?: string
-  status: "pending" | "approved" | "rejected"
-  affiliateId?: mongoose.Types.ObjectId
-  affiliateCommission?: number
-  tier2AffiliateId?: mongoose.Types.ObjectId
-  tier2Commission?: number
-  approvedAt?: Date
-  approvedBy?: mongoose.Types.ObjectId
-  rejectedAt?: Date
-  rejectedBy?: mongoose.Types.ObjectId
-  rejectionReason?: string
+  paymentMethodId: string
+  paymentProof: string | null
+  status: "pending" | "pending_verification" | "completed" | "rejected"
+  affiliateId: mongoose.Types.ObjectId | null
+  affiliateCommission: number
+  tier2AffiliateId: mongoose.Types.ObjectId | null
+  tier2Commission: number
+  completedAt: Date | null
   createdAt: Date
   updatedAt: Date
 }
 
-const TransactionSchema = new Schema(
+const TransactionSchema = new Schema<TransactionDocument>(
   {
     user: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "User",
-      required: [true, "User is required"],
+      required: true,
     },
     package: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "Package",
-      required: [true, "Package is required"],
+      required: true,
     },
     amount: {
       type: Number,
-      required: [true, "Amount is required"],
-      min: [0, "Amount must be positive"],
+      required: true,
     },
-    paymentMethod: {
+    paymentMethodId: {
       type: String,
-      enum: ["bank_transfer", "esewa", "khalti"],
-      required: [true, "Payment method is required"],
+      required: true,
     },
     paymentProof: {
       type: String,
@@ -48,11 +42,11 @@ const TransactionSchema = new Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected"],
+      enum: ["pending", "pending_verification", "completed", "rejected"],
       default: "pending",
     },
     affiliateId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "User",
       default: null,
     },
@@ -61,7 +55,7 @@ const TransactionSchema = new Schema(
       default: 0,
     },
     tier2AffiliateId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "User",
       default: null,
     },
@@ -69,26 +63,8 @@ const TransactionSchema = new Schema(
       type: Number,
       default: 0,
     },
-    approvedAt: {
+    completedAt: {
       type: Date,
-      default: null,
-    },
-    approvedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
-    },
-    rejectedAt: {
-      type: Date,
-      default: null,
-    },
-    rejectedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
-    },
-    rejectionReason: {
-      type: String,
       default: null,
     },
   },
@@ -97,6 +73,7 @@ const TransactionSchema = new Schema(
   },
 )
 
-const Transaction = mongoose.models.Transaction || mongoose.model<ITransaction>("Transaction", TransactionSchema)
+// Create or use existing model
+const Transaction = mongoose.models.Transaction || mongoose.model<TransactionDocument>("Transaction", TransactionSchema)
 
 export default Transaction

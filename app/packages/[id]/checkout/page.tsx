@@ -1,33 +1,18 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/components/ui/use-toast"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
-import {
-  ArrowLeft,
-  ArrowRight,
-  CreditCard,
-  Landmark,
-  Wallet,
-  CheckCircle,
-  AlertCircle,
-  Info,
-  Users,
-  Gift,
-  X,
-} from "lucide-react"
+import { ArrowLeft, CheckCircle, AlertCircle, Info, Users } from "lucide-react"
 
 interface Package {
   _id: string
@@ -38,72 +23,60 @@ interface Package {
   courses: any[]
 }
 
-interface ReferrerInfo {
-  id: string
+interface PaymentMethod {
+  _id: string
   name: string
-  email: string
+  qrCodeUrl: string
+  instructions: string
 }
 
 export default function CheckoutPage({ params }: { params: { id: string } }) {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { data: session, status } = useSession()
   const { toast } = useToast()
 
   const [isLoading, setIsLoading] = useState(true)
   const [packageData, setPackageData] = useState<Package | null>(null)
-  const [activeStep, setActiveStep] = useState(1)
-  const [paymentMethod, setPaymentMethod] = useState("bank_transfer")
-
-  // Promo code states
-  const [promoCode, setPromoCode] = useState("")
-  const [discount, setDiscount] = useState(0)
-  const [isValidatingPromo, setIsValidatingPromo] = useState(false)
-  const [promoError, setPromoError] = useState("")
-
-  // Referral code states
-  const [referralCode, setReferralCode] = useState("")
-  const [referrerInfo, setReferrerInfo] = useState<ReferrerInfo | null>(null)
-  const [isValidatingReferral, setIsValidatingReferral] = useState(false)
-  const [referralError, setReferralError] = useState("")
-  const [autoDetectedReferral, setAutoDetectedReferral] = useState(false)
-
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-
-  // Auto-detect referral code from URL
-  useEffect(() => {
-    const urlReferralCode = searchParams.get("ref")
-    if (urlReferralCode && !referralCode) {
-      setReferralCode(urlReferralCode)
-      setAutoDetectedReferral(true)
-      validateReferralCode(urlReferralCode)
-    }
-  }, [searchParams])
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      const currentUrl = `/packages/${params.id}/checkout`
-      const referralParam = searchParams.get("ref") ? `?ref=${searchParams.get("ref")}` : ""
-      router.push(`/login?callbackUrl=${encodeURIComponent(currentUrl + referralParam)}`)
+      router.push(`/login?callbackUrl=${encodeURIComponent(`/packages/${params.id}/checkout`)}`)
       return
     }
 
-    const fetchPackage = async () => {
+    const fetchData = async () => {
       try {
         setIsLoading(true)
-        const response = await fetch(`/api/packages/${params.id}`)
 
-        if (!response.ok) {
+        // Fetch package data
+        const packageResponse = await fetch(`/api/packages/${params.id}`)
+        if (!packageResponse.ok) {
           throw new Error("Failed to fetch package data")
         }
+        const packageResult = await packageResponse.json()
 
-        const data = await response.json()
-        setPackageData(data.package)
+        // Fetch payment methods
+        const paymentResponse = await fetch("/api/payment-methods")
+        if (!paymentResponse.ok) {
+          throw new Error("Failed to fetch payment methods")
+        }
+        const paymentResult = await paymentResponse.json()
+
+        setPackageData(packageResult.package)
+        setPaymentMethods(paymentResult.paymentMethods)
+
+        // Select first payment method by default if available
+        if (paymentResult.paymentMethods.length > 0) {
+          setSelectedPaymentMethod(paymentResult.paymentMethods[0]._id)
+        }
       } catch (error) {
-        console.error("Error fetching package:", error)
+        console.error("Error fetching data:", error)
         toast({
           title: "Error",
-          description: "Failed to load package data. Please try again.",
+          description: "Failed to load checkout data. Please try again.",
           variant: "destructive",
         })
       } finally {
@@ -112,101 +85,20 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
     }
 
     if (status === "authenticated") {
-      fetchPackage()
+      fetchData()
     }
-  }, [params.id, router, status, toast, searchParams])
-
-  const validateReferralCode = async (code?: string) => {
-    const codeToValidate = code || referralCode
-    if (!codeToValidate.trim()) {
-      setReferralError("Please enter a referral code")
-      return
-    }
-
-    try {
-      setIsValidatingReferral(true)
-      setReferralError("")
-
-      const response = await fetch(`/api/referral/validate?code=${codeToValidate}`)
-      const data = await response.json()
-
-      if (!response.ok || !data.success) {
-        setReferralError(data.message || "Invalid referral code")
-        setReferrerInfo(null)
-        return
-      }
-
-      setReferrerInfo(data.referrer)
-      if (!code) {
-        // Only show toast for manual validation
-        toast({
-          title: "Referral code applied!",
-          description: `You were referred by ${data.referrer.name}`,
-        })
-      }
-    } catch (error) {
-      console.error("Error validating referral code:", error)
-      setReferralError("Failed to validate referral code. Please try again.")
-      setReferrerInfo(null)
-    } finally {
-      setIsValidatingReferral(false)
-    }
-  }
-
-  const validatePromoCode = async () => {
-    if (!promoCode.trim()) {
-      setPromoError("Please enter a promo code")
-      return
-    }
-
-    try {
-      setIsValidatingPromo(true)
-      setPromoError("")
-
-      const response = await fetch(`/api/promo/validate?code=${promoCode}&package=${params.id}`)
-      const data = await response.json()
-
-      if (!response.ok || !data.success) {
-        setPromoError(data.message || "Invalid promo code")
-        setDiscount(0)
-        return
-      }
-
-      setDiscount(data.discount)
-      toast({
-        title: "Promo code applied!",
-        description: `You received a ${data.discount}% discount.`,
-      })
-    } catch (error) {
-      console.error("Error validating promo code:", error)
-      setPromoError("Failed to validate promo code. Please try again.")
-    } finally {
-      setIsValidatingPromo(false)
-    }
-  }
-
-  const removeReferralCode = () => {
-    setReferralCode("")
-    setReferrerInfo(null)
-    setReferralError("")
-    setAutoDetectedReferral(false)
-  }
+  }, [params.id, router, status, toast])
 
   const handleSubmit = async () => {
-    if (!packageData) return
+    if (!packageData || !selectedPaymentMethod) return
 
     try {
       setIsSubmitting(true)
 
       const formData = new FormData()
       formData.append("packageId", packageData._id)
-      formData.append("amount", calculateFinalPrice().toString())
-      formData.append("paymentMethod", paymentMethod)
-
-      // Add referral information if available
-      if (referrerInfo) {
-        formData.append("referrerId", referrerInfo.id)
-      }
+      formData.append("amount", packageData.price.toString())
+      formData.append("paymentMethodId", selectedPaymentMethod)
 
       const response = await fetch("/api/transactions", {
         method: "POST",
@@ -236,22 +128,6 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
     } finally {
       setIsSubmitting(false)
     }
-  }
-
-  const calculateFinalPrice = () => {
-    if (!packageData) return 0
-    if (discount <= 0) return packageData.price
-
-    const discountAmount = (packageData.price * discount) / 100
-    return packageData.price - discountAmount
-  }
-
-  const nextStep = () => {
-    setActiveStep((prev) => Math.min(prev + 1, 4))
-  }
-
-  const prevStep = () => {
-    setActiveStep((prev) => Math.max(prev - 1, 1))
   }
 
   if (status === "loading" || isLoading) {
@@ -302,7 +178,6 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
       <div className="container max-w-4xl mx-auto py-12 px-4">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
           <AlertDescription>
             Failed to load package data. Please try again or{" "}
             <Link href="/packages" className="underline">
@@ -315,8 +190,10 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
     )
   }
 
+  const selectedMethod = paymentMethods.find((method) => method._id === selectedPaymentMethod)
+
   return (
-    <div className="container max-w-4xl mx-auto py-12 px-4">
+    <div className="container max-w-5xl mx-auto py-12 px-4">
       <div className="flex items-center gap-2 mb-8">
         <Button variant="outline" size="icon" asChild>
           <Link href={`/packages/${params.id}`}>
@@ -324,361 +201,147 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
           </Link>
         </Button>
         <h1 className="text-2xl font-bold">Checkout</h1>
-        {autoDetectedReferral && referrerInfo && (
-          <Badge variant="secondary" className="ml-auto">
-            <Users className="h-3 w-3 mr-1" />
-            Referred by {referrerInfo.name}
-          </Badge>
-        )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div className="md:col-span-2">
-          <Card>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-8">
+          {/* Package Summary */}
+          <Card className="overflow-hidden border-0 shadow-md">
+            <div className="flex flex-col sm:flex-row">
+              <div className="relative w-full sm:w-1/3 aspect-video sm:aspect-square">
+                <Image
+                  src={packageData.thumbnail || "/placeholder.svg?height=200&width=200"}
+                  alt={packageData.title}
+                  fill
+                  className="object-cover"
+                />
+              </div>
+              <CardContent className="p-6 sm:w-2/3">
+                <h2 className="text-xl font-semibold mb-2">{packageData.title}</h2>
+                <p className="text-gray-600 dark:text-gray-300 mb-4">{packageData.description}</p>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="flex items-center gap-1">
+                    <Users className="h-3.5 w-3.5" />
+                    {packageData.courses?.length || 0} Courses
+                  </Badge>
+                </div>
+              </CardContent>
+            </div>
+          </Card>
+
+          {/* Payment Methods */}
+          <Card className="border-0 shadow-md">
             <CardHeader>
-              <CardTitle>Complete Your Purchase</CardTitle>
-              <CardDescription>Follow the steps below to complete your purchase</CardDescription>
+              <CardTitle>Select Payment Method</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="mb-6">
-                <div className="flex justify-between mb-2">
-                  {[1, 2, 3, 4].map((step) => (
+            <CardContent className="space-y-6">
+              {paymentMethods.length > 0 ? (
+                <div className="grid grid-cols-1 gap-4">
+                  {paymentMethods.map((method) => (
                     <div
-                      key={step}
-                      className={`flex flex-col items-center ${
-                        step < activeStep
-                          ? "text-primary"
-                          : step === activeStep
-                            ? "text-primary font-medium"
-                            : "text-muted-foreground"
+                      key={method._id}
+                      className={`relative rounded-lg border-2 p-4 cursor-pointer transition-all ${
+                        selectedPaymentMethod === method._id
+                          ? "border-purple-600 bg-purple-50 dark:bg-purple-950/20"
+                          : "border-gray-200 hover:border-gray-300 dark:border-gray-800 dark:hover:border-gray-700"
                       }`}
+                      onClick={() => setSelectedPaymentMethod(method._id)}
                     >
-                      <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center mb-1 ${
-                          step < activeStep
-                            ? "bg-primary text-primary-foreground"
-                            : step === activeStep
-                              ? "border-2 border-primary"
-                              : "border-2 border-muted"
-                        }`}
-                      >
-                        {step < activeStep ? <CheckCircle className="h-4 w-4" /> : step}
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                            selectedPaymentMethod === method._id ? "border-purple-600" : "border-gray-400"
+                          }`}
+                        >
+                          {selectedPaymentMethod === method._id && (
+                            <div className="w-2.5 h-2.5 rounded-full bg-purple-600" />
+                          )}
+                        </div>
+                        <span className="font-medium">{method.name}</span>
                       </div>
-                      <span className="text-xs hidden sm:block">
-                        {step === 1 ? "Package" : step === 2 ? "Payment" : step === 3 ? "Referral" : "Review"}
-                      </span>
                     </div>
                   ))}
                 </div>
-                <div className="relative mt-1 mb-6">
-                  <div className="absolute top-0 left-0 right-0 h-1 bg-muted rounded-full" />
-                  <div
-                    className="absolute top-0 left-0 h-1 bg-primary rounded-full transition-all duration-300"
-                    style={{ width: `${((activeStep - 1) / 3) * 100}%` }}
-                  />
-                </div>
-              </div>
-
-              {activeStep === 1 && (
-                <div className="space-y-6">
-                  <div className="flex items-start gap-4">
-                    <div className="relative w-24 h-24 rounded-md overflow-hidden border">
-                      <Image
-                        src={packageData.thumbnail || "/placeholder.svg?height=96&width=96"}
-                        alt={packageData.title}
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-medium">{packageData.title}</h3>
-                      <p className="text-sm text-muted-foreground mb-2">{packageData.description}</p>
-                      <p className="text-lg font-bold">₹{packageData.price.toFixed(2)}</p>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div>
-                    <h3 className="font-medium mb-2">Included Courses</h3>
-                    <ul className="space-y-2">
-                      {packageData.courses && packageData.courses.length > 0 ? (
-                        packageData.courses.map((course: any) => (
-                          <li key={course._id} className="flex items-center gap-2">
-                            <CheckCircle className="h-4 w-4 text-green-500" />
-                            <span>{course.title}</span>
-                          </li>
-                        ))
-                      ) : (
-                        <li className="text-muted-foreground">No courses included in this package</li>
-                      )}
-                    </ul>
-                  </div>
+              ) : (
+                <div className="text-center py-8 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                  <AlertCircle className="h-10 w-10 text-gray-400 mx-auto mb-3" />
+                  <p className="text-gray-500 dark:text-gray-400">No payment methods available.</p>
                 </div>
               )}
-
-              {activeStep === 2 && (
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="font-medium mb-4">Select Payment Method</h3>
-                    <RadioGroup
-                      value={paymentMethod}
-                      onValueChange={setPaymentMethod}
-                      className="grid grid-cols-1 md:grid-cols-3 gap-4"
-                    >
-                      <div>
-                        <RadioGroupItem
-                          value="bank_transfer"
-                          id="bank_transfer"
-                          className="peer sr-only"
-                          aria-label="Bank Transfer"
-                        />
-                        <Label
-                          htmlFor="bank_transfer"
-                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-transparent p-4 hover:bg-muted hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                        >
-                          <Landmark className="mb-3 h-6 w-6" />
-                          <span className="font-medium">Bank Transfer</span>
-                        </Label>
-                      </div>
-
-                      <div>
-                        <RadioGroupItem value="esewa" id="esewa" className="peer sr-only" aria-label="eSewa" />
-                        <Label
-                          htmlFor="esewa"
-                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-transparent p-4 hover:bg-muted hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                        >
-                          <Wallet className="mb-3 h-6 w-6" />
-                          <span className="font-medium">eSewa</span>
-                        </Label>
-                      </div>
-
-                      <div>
-                        <RadioGroupItem value="khalti" id="khalti" className="peer sr-only" aria-label="Khalti" />
-                        <Label
-                          htmlFor="khalti"
-                          className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-transparent p-4 hover:bg-muted hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                        >
-                          <CreditCard className="mb-3 h-6 w-6" />
-                          <span className="font-medium">Khalti</span>
-                        </Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  <Alert>
-                    <Info className="h-4 w-4" />
-                    <AlertTitle>Payment Process</AlertTitle>
-                    <AlertDescription>
-                      After completing your order, you'll need to make the payment and upload proof of payment. Your
-                      courses will be accessible after our team verifies your payment.
-                    </AlertDescription>
-                  </Alert>
-                </div>
-              )}
-
-              {activeStep === 3 && (
-                <div className="space-y-6">
-                  {/* Referral Code Section */}
-                  <div>
-                    <h3 className="font-medium mb-4 flex items-center gap-2">
-                      <Users className="h-4 w-4" />
-                      Referral Code
-                    </h3>
-
-                    {referrerInfo ? (
-                      <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                            <span className="text-green-800 font-medium">Referred by {referrerInfo.name}</span>
-                          </div>
-                          {!autoDetectedReferral && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={removeReferralCode}
-                              className="text-green-600 hover:text-green-800"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                        <p className="text-sm text-green-600 mt-1">
-                          {autoDetectedReferral ? "Automatically detected from your link" : "Manually applied"}
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <div className="flex gap-2">
-                          <Input
-                            placeholder="Enter referral code (optional)"
-                            value={referralCode}
-                            onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                            disabled={isValidatingReferral}
-                          />
-                          <Button
-                            onClick={() => validateReferralCode()}
-                            disabled={isValidatingReferral || !referralCode.trim()}
-                            variant="outline"
-                          >
-                            {isValidatingReferral ? "Validating..." : "Apply"}
-                          </Button>
-                        </div>
-                        {referralError && <p className="text-sm text-red-500">{referralError}</p>}
-                      </div>
-                    )}
-                  </div>
-
-                  <Separator />
-
-                  {/* Promo Code Section */}
-                  <div>
-                    <h3 className="font-medium mb-4 flex items-center gap-2">
-                      <Gift className="h-4 w-4" />
-                      Promo Code (Optional)
-                    </h3>
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Enter promo code"
-                        value={promoCode}
-                        onChange={(e) => setPromoCode(e.target.value)}
-                        disabled={isValidatingPromo}
-                      />
-                      <Button
-                        onClick={validatePromoCode}
-                        disabled={isValidatingPromo || !promoCode.trim()}
-                        variant="outline"
-                      >
-                        {isValidatingPromo ? "Validating..." : "Apply"}
-                      </Button>
-                    </div>
-                    {promoError && <p className="text-sm text-red-500 mt-1">{promoError}</p>}
-                    {discount > 0 && (
-                      <div className="mt-2 p-2 bg-green-50 text-green-700 rounded-md text-sm flex items-center">
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        {discount}% discount applied!
-                      </div>
-                    )}
-                  </div>
-
-                  <Alert>
-                    <Info className="h-4 w-4" />
-                    <AlertTitle>Referral Benefits</AlertTitle>
-                    <AlertDescription>
-                      When someone purchases using your referral code, you'll earn 65% commission from their purchase.
-                      Help others learn and earn rewards!
-                    </AlertDescription>
-                  </Alert>
-                </div>
-              )}
-
-              {activeStep === 4 && (
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="font-medium mb-4">Order Summary</h3>
-                    <div className="rounded-lg border p-4 space-y-4">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Package:</span>
-                        <span className="font-medium">{packageData.title}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Payment Method:</span>
-                        <span className="font-medium capitalize">{paymentMethod.replace("_", " ")}</span>
-                      </div>
-                      {referrerInfo && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Referred by:</span>
-                          <span className="font-medium">{referrerInfo.name}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Original Price:</span>
-                        <span>₹{packageData.price.toFixed(2)}</span>
-                      </div>
-                      {discount > 0 && (
-                        <div className="flex justify-between text-green-600">
-                          <span>Discount ({discount}%):</span>
-                          <span>-₹{((packageData.price * discount) / 100).toFixed(2)}</span>
-                        </div>
-                      )}
-                      <Separator />
-                      <div className="flex justify-between font-bold">
-                        <span>Total:</span>
-                        <span>₹{calculateFinalPrice().toFixed(2)}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <Alert>
-                    <Info className="h-4 w-4" />
-                    <AlertTitle>Next Steps</AlertTitle>
-                    <AlertDescription>
-                      After placing your order, you'll be directed to a page where you can upload proof of your payment.
-                      Your courses will be accessible after our team verifies your payment.
-                    </AlertDescription>
-                  </Alert>
-                </div>
-              )}
-
-              <div className="flex justify-between mt-6">
-                <Button type="button" variant="outline" onClick={prevStep} disabled={activeStep === 1}>
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back
-                </Button>
-                {activeStep < 4 ? (
-                  <Button type="button" onClick={nextStep}>
-                    Next
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </Button>
-                ) : (
-                  <Button onClick={handleSubmit} disabled={isSubmitting}>
-                    {isSubmitting ? "Processing..." : "Place Order"}
-                  </Button>
-                )}
-              </div>
             </CardContent>
           </Card>
+
+          {/* Payment Instructions */}
+          {selectedMethod && (
+            <Card className="border-0 shadow-md">
+              <CardHeader>
+                <CardTitle>Payment Instructions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex flex-col md:flex-row gap-6 items-center">
+                  <div className="relative w-full max-w-[200px] aspect-square">
+                    <Image
+                      src={selectedMethod.qrCodeUrl || "/placeholder.svg"}
+                      alt={`${selectedMethod.name} QR Code`}
+                      fill
+                      className="object-contain"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-medium mb-2">How to pay:</h3>
+                    <div className="prose dark:prose-invert max-w-none">
+                      <p>{selectedMethod.instructions}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    After placing your order, you'll be directed to a page where you can upload proof of your payment.
+                    Your courses will be accessible after our team verifies your payment.
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+              <CardFooter>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={isSubmitting || !selectedPaymentMethod}
+                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                >
+                  {isSubmitting ? "Processing..." : "Place Order"}
+                </Button>
+              </CardFooter>
+            </Card>
+          )}
         </div>
 
         <div>
-          <Card>
+          <Card className="sticky top-8 border-0 shadow-md">
             <CardHeader>
               <CardTitle>Order Summary</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {referrerInfo && (
-                  <>
-                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <div className="flex items-center gap-2 text-blue-800">
-                        <Users className="h-4 w-4" />
-                        <span className="font-medium">Referral Applied</span>
-                      </div>
-                      <p className="text-sm text-blue-600 mt-1">Referred by {referrerInfo.name}</p>
-                    </div>
-                    <Separator />
-                  </>
-                )}
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Original Price:</span>
+                  <span className="text-gray-600 dark:text-gray-300">Package Price:</span>
                   <span>₹{packageData.price.toFixed(2)}</span>
                 </div>
-                {discount > 0 && (
-                  <div className="flex justify-between text-green-600">
-                    <span>Discount ({discount}%):</span>
-                    <span>-₹{((packageData.price * discount) / 100).toFixed(2)}</span>
-                  </div>
-                )}
                 <Separator />
                 <div className="flex justify-between font-bold">
                   <span>Total:</span>
-                  <span>₹{calculateFinalPrice().toFixed(2)}</span>
+                  <span>₹{packageData.price.toFixed(2)}</span>
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="flex flex-col space-y-2 text-center">
-              <p className="text-xs text-muted-foreground">
+            <CardFooter className="flex flex-col space-y-4">
+              <div className="w-full p-3 bg-green-50 dark:bg-green-950/30 rounded-lg">
+                <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                  <CheckCircle className="h-4 w-4" />
+                  <span className="font-medium">Secure Checkout</span>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
                 By completing this purchase, you agree to our Terms of Service and Privacy Policy.
               </p>
             </CardFooter>
