@@ -1,54 +1,64 @@
-import mongoose, { Schema, type Document } from "mongoose"
+import mongoose from "mongoose"
 
-export interface IAffiliateEarning extends Document {
+export interface IAffiliateEarning extends mongoose.Document {
   user: mongoose.Types.ObjectId
+  referredUser: mongoose.Types.ObjectId
   transaction: mongoose.Types.ObjectId
   amount: number
-  tier: number // 1 for direct referral, 2 for second-tier
-  status: "pending" | "available" | "withdrawn" | "processing"
-  withdrawalId?: mongoose.Types.ObjectId
+  tier: number
+  status: "pending" | "available" | "processing" | "withdrawn" | "cancelled"
+  description: string
   createdAt: Date
   updatedAt: Date
 }
 
-const AffiliateEarningSchema = new Schema(
+const AffiliateEarningSchema = new mongoose.Schema<IAffiliateEarning>(
   {
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: [true, "User is required"],
+      required: true,
+      index: true,
+    },
+    referredUser: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
     },
     transaction: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Transaction",
-      required: [true, "Transaction is required"],
+      required: true,
     },
     amount: {
       type: Number,
-      required: [true, "Amount is required"],
-      min: [0, "Amount must be positive"],
+      required: true,
+      min: 0,
     },
     tier: {
       type: Number,
-      enum: [1, 2],
-      default: 1,
+      required: true,
+      enum: [1, 2], // 1 = direct referral, 2 = second-tier referral
     },
     status: {
       type: String,
-      enum: ["pending", "available", "withdrawn", "processing"],
+      enum: ["pending", "available", "processing", "withdrawn", "cancelled"],
       default: "pending",
     },
-    withdrawalId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Withdrawal",
-      default: null,
+    description: {
+      type: String,
+      required: true,
     },
   },
-  {
-    timestamps: true,
-  },
+  { timestamps: true },
 )
 
+// Create indexes for common queries
+AffiliateEarningSchema.index({ user: 1, status: 1 })
+AffiliateEarningSchema.index({ transaction: 1 })
+AffiliateEarningSchema.index({ createdAt: -1 })
+
+// Prevent mongoose from creating a new model if it already exists
 const AffiliateEarning =
   mongoose.models.AffiliateEarning || mongoose.model<IAffiliateEarning>("AffiliateEarning", AffiliateEarningSchema)
 

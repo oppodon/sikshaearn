@@ -1,100 +1,91 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import dbConnect from "@/lib/mongodb"
 import User from "@/models/User"
-import Transaction from "@/models/Transaction"
-import { BalanceService } from "@/lib/balance-service"
+import AffiliateEarning from "@/models/AffiliateEarning"
+import Balance from "@/models/Balance"
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions)
 
-    if (!session) {
+    if (!session?.user?.email) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
     }
 
     await dbConnect()
+    console.log("Connected to MongoDB for affiliate stats")
 
-    // Get user data including referral code
-    const user = await User.findById(session.user.id).lean()
-
+    // Get user
+    const user = await User.findOne({ email: session.user.email })
     if (!user) {
       return NextResponse.json({ message: "User not found" }, { status: 404 })
     }
 
-    // Generate referral code if not exists
-    let referralCode = user.referralCode
-    if (!referralCode) {
-      referralCode = user._id.toString().substring(0, 6).toUpperCase()
-      await User.findByIdAndUpdate(session.user.id, { referralCode })
-    }
+    console.log(`Fetching stats for user: ${user._id}`)
 
-    // Get affiliate stats
-    const directReferrals = await User.countDocuments({ referredBy: session.user.id })
-    const secondTierReferrals = await User.countDocuments({
-      referredBy: { $in: await User.find({ referredBy: session.user.id }).distinct("_id") },
-    })
+    // Get balance
+    const balance = await Balance.findOne({ user: user._id })
+    console.log("User balance:", balance)
 
-    // Get balance data
-    const balanceData = await BalanceService.getBalanceSummary(session.user.id)
-    const balance = balanceData.balance || {
-      totalEarnings: 0,
-      availableBalance: 0,
-      pendingBalance: 0,
-      withdrawnBalance: 0,
-      processingBalance: 0,
-    }
+    // Get direct referrals
+    const directReferrals = await User.countDocuments({ referredBy: user._id })
+    console.log("Direct referrals:", directReferrals)
 
-    // Get recent transactions
-    const recentTransactions = await Transaction.find({
-      affiliateId: session.user.id,
-      status: "approved",
-    })
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .populate("user", "name email")
-      .populate("package", "title price")
-      .lean()
+    // Get tier 2 referrals (users referred by your referrals)
+    const directReferralUsers = await User.find({ referredBy: user._id }).select("_id")
+    const directReferralIds = directReferralUsers.map((ref) => ref._id)
+    const tier2Referrals = await User.countDocuments({ referredBy: { $in: directReferralIds } })
+    console.log("Tier 2 referrals:", tier2Referrals)
+
+    // Get earnings
+    const earnings = await AffiliateEarning.aggregate([
+      { $match: { user: user._id } },
+      {
+        $group: {
+          _id: null,
+          totalEarnings: { $sum: "$amount" },
+          directEarnings: {
+            $sum: {
+              $cond: [{ $eq: ["$tier", 1] }, "$amount", 0],
+            },
+          },
+          tier2Earnings: {
+            $sum: {
+              $cond: [{ $eq: ["$tier", 2] }, "$amount", 0],
+            },
+          },
+        },
+      },
+    ])
+    console.log("Earnings aggregation:", earnings)
 
     // Calculate conversion rate
-    const totalClicks = user.referralClicks || 0
-    const conversionRate = totalClicks > 0 ? ((directReferrals / totalClicks) * 100).toFixed(2) : "0"
+    const linkClicks = user.referralClicks || 0
+    const conversionRate = linkClicks > 0 ? Math.round((directReferrals / linkClicks) * 100) : 0
+    console.log(`Link clicks: ${linkClicks}, Conversion rate: ${conversionRate}%`)
 
-    // Get referral link
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://knowledgehubnepal.com"
-    const referralLink = `${baseUrl}/?ref=${referralCode}`
+    // Prepare response
+    const stats = {
+      totalEarnings: earnings.length > 0 ? earnings[0].totalEarnings : 0,
+      directEarnings: earnings.length > 0 ? earnings[0].directEarnings : 0,
+      tier2Earnings: earnings.length > 0 ? earnings[0].tier2Earnings : 0,
+      availableBalance: balance?.available || 0,
+      pendingBalance: balance?.pending || 0,
+      processingBalance: balance?.processing || 0,
+      withdrawnBalance: balance?.withdrawn || 0,
+      totalReferrals: directReferrals + tier2Referrals,
+      directReferrals,
+      tier2Referrals,
+      conversionRate,
+      linkClicks,
+    }
 
-    return NextResponse.json({
-      stats: {
-        directReferrals,
-        secondTierReferrals,
-        totalReferrals: directReferrals + secondTierReferrals,
-        earnings: {
-          total: user.totalEarnings || balance.totalEarnings || 0,
-          available: balance.availableBalance || 0,
-          pending: balance.pendingBalance || 0,
-          withdrawn: balance.withdrawnBalance || 0,
-          processing: balance.processingBalance || 0,
-          tier1: user.referralEarnings || 0,
-          tier2: user.tier2Earnings || 0,
-        },
-        conversionRate,
-        referralCode,
-        referralLink,
-        referralClicks: totalClicks,
-      },
-      recentTransactions: recentTransactions.map((tx) => ({
-        id: tx._id,
-        date: tx.createdAt,
-        package: tx.package?.title || "Unknown Package",
-        amount: tx.package?.price || 0,
-        commission: Math.round((tx.package?.price || 0) * 0.65), // 65% commission
-        customer: tx.user?.email ? tx.user.email.replace(/(.{2})(.*)(@.*)/, "$1***$3") : "unknown@email.com",
-      })),
-    })
+    console.log("Returning stats:", stats)
+    return NextResponse.json(stats)
   } catch (error) {
     console.error("Error fetching affiliate stats:", error)
-    return NextResponse.json({ message: "Failed to fetch affiliate stats" }, { status: 500 })
+    return NextResponse.json({ message: "Failed to fetch affiliate stats", error: String(error) }, { status: 500 })
   }
 }

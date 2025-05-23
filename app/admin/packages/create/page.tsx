@@ -27,7 +27,7 @@ export default function CreatePackagePage() {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
 
   const [formData, setFormData] = useState({
-    name: "",
+    title: "",
     description: "",
     longDescription: "",
     price: "",
@@ -109,8 +109,8 @@ export default function CreatePackagePage() {
   const validateForm = () => {
     const errors: Record<string, string> = {}
 
-    if (!formData.name.trim()) {
-      errors.name = "Package name is required"
+    if (!formData.title.trim()) {
+      errors.title = "Package title is required"
     }
 
     if (!formData.description.trim()) {
@@ -154,7 +154,7 @@ export default function CreatePackagePage() {
       const filteredBenefits = benefits.filter((b) => b.trim() !== "")
 
       const packageData = {
-        name: formData.name,
+        title: formData.title,
         description: formData.description,
         longDescription: formData.longDescription,
         price: Number.parseFloat(formData.price),
@@ -247,18 +247,18 @@ export default function CreatePackagePage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name" className={validationErrors.name ? "text-destructive" : ""}>
-                    Package Name*
+                  <Label htmlFor="title" className={validationErrors.title ? "text-destructive" : ""}>
+                    Package Title*
                   </Label>
                   <Input
-                    id="name"
-                    name="name"
-                    value={formData.name}
+                    id="title"
+                    name="title"
+                    value={formData.title}
                     onChange={handleChange}
                     placeholder="e.g. Silver Package"
-                    className={validationErrors.name ? "border-destructive" : ""}
+                    className={validationErrors.title ? "border-destructive" : ""}
                   />
-                  {validationErrors.name && <p className="text-sm text-destructive">{validationErrors.name}</p>}
+                  {validationErrors.title && <p className="text-sm text-destructive">{validationErrors.title}</p>}
                 </div>
 
                 <div className="space-y-2">

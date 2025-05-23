@@ -6,7 +6,10 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Trophy, Users, TrendingUp } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Trophy, Users, TrendingUp, Medal, Award, Crown, RefreshCw } from "lucide-react"
+import { formatCurrency } from "@/lib/utils"
 
 interface LeaderboardEntry {
   rank: number
@@ -27,6 +30,7 @@ export default function LeaderboardPage() {
   const [referralsLeaderboard, setReferralsLeaderboard] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState("all")
+  const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
     fetchLeaderboardData()
@@ -35,19 +39,26 @@ export default function LeaderboardPage() {
   const fetchLeaderboardData = async () => {
     try {
       setLoading(true)
+      console.log("Fetching leaderboard data for period:", period)
 
       // Fetch earnings leaderboard
-      const earningsResponse = await fetch(`/api/leaderboard/earnings?period=${period}&limit=10`)
+      const earningsResponse = await fetch(`/api/leaderboard/earnings?period=${period}&limit=20`)
       if (earningsResponse.ok) {
         const earningsData = await earningsResponse.json()
-        setEarningsLeaderboard(earningsData.leaderboard)
+        console.log("Earnings leaderboard data:", earningsData)
+        setEarningsLeaderboard(earningsData.leaderboard || [])
+      } else {
+        console.error("Failed to fetch earnings leaderboard:", await earningsResponse.text())
       }
 
       // Fetch referrals leaderboard
-      const referralsResponse = await fetch("/api/leaderboard/referrals?limit=10")
+      const referralsResponse = await fetch("/api/leaderboard/referrals?limit=20")
       if (referralsResponse.ok) {
         const referralsData = await referralsResponse.json()
-        setReferralsLeaderboard(referralsData.leaderboard)
+        console.log("Referrals leaderboard data:", referralsData)
+        setReferralsLeaderboard(referralsData.leaderboard || [])
+      } else {
+        console.error("Failed to fetch referrals leaderboard:", await referralsResponse.text())
       }
     } catch (error) {
       console.error("Error fetching leaderboard data:", error)
@@ -56,12 +67,10 @@ export default function LeaderboardPage() {
     }
   }
 
-  const formatCurrency = (amount = 0) => {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-      maximumFractionDigits: 0,
-    }).format(amount)
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await fetchLeaderboardData()
+    setRefreshing(false)
   }
 
   const getRankBadgeColor = (rank: number) => {
@@ -77,22 +86,47 @@ export default function LeaderboardPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex-1 space-y-4 p-4 pt-6 md:p-8">
-        <div className="flex items-center justify-between">
-          <h2 className="text-3xl font-bold tracking-tight">Affiliate Leaderboard</h2>
-        </div>
-        <div className="animate-pulse">
-          <div className="h-10 bg-gray-200 rounded mb-8"></div>
-          <div className="space-y-4">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-16 bg-gray-200 rounded"></div>
-            ))}
+  const getRankIcon = (rank: number) => {
+    switch (rank) {
+      case 1:
+        return <Crown className="h-4 w-4 text-yellow-600" />
+      case 2:
+        return <Medal className="h-4 w-4 text-gray-600" />
+      case 3:
+        return <Award className="h-4 w-4 text-amber-600" />
+      default:
+        return null
+    }
+  }
+
+  const renderSkeletonRows = () => {
+    return Array(5)
+      .fill(0)
+      .map((_, index) => (
+        <div key={index} className="grid grid-cols-12 gap-4 border-t p-4 items-center">
+          <div className="col-span-1">
+            <Skeleton className="h-8 w-8 rounded-full" />
+          </div>
+          <div className="col-span-3">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-8 w-8 rounded-full" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+          </div>
+          <div className="col-span-2">
+            <Skeleton className="h-4 w-16" />
+          </div>
+          <div className="col-span-2">
+            <Skeleton className="h-4 w-12" />
+          </div>
+          <div className="col-span-2">
+            <Skeleton className="h-4 w-16" />
+          </div>
+          <div className="col-span-2">
+            <Skeleton className="h-4 w-20" />
           </div>
         </div>
-      </div>
-    )
+      ))
   }
 
   return (
@@ -110,6 +144,10 @@ export default function LeaderboardPage() {
               <SelectItem value="week">This Week</SelectItem>
             </SelectContent>
           </Select>
+          <Button variant="outline" size="icon" onClick={handleRefresh} disabled={refreshing || loading}>
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            <span className="sr-only">Refresh</span>
+          </Button>
         </div>
       </div>
 
@@ -128,7 +166,10 @@ export default function LeaderboardPage() {
         <TabsContent value="earnings">
           <Card>
             <CardHeader>
-              <CardTitle>Top Affiliate Earners</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-primary" />
+                Top Affiliate Earners
+              </CardTitle>
               <CardDescription>
                 {period === "all"
                   ? "Affiliates who have earned the most commission all time"
@@ -139,7 +180,7 @@ export default function LeaderboardPage() {
             </CardHeader>
             <CardContent>
               <div className="rounded-md border">
-                <div className="grid grid-cols-12 gap-4 p-4 font-medium">
+                <div className="grid grid-cols-12 gap-4 p-4 font-medium bg-muted/50">
                   <div className="col-span-1">Rank</div>
                   <div className="col-span-3">Affiliate</div>
                   <div className="col-span-2">Username</div>
@@ -148,20 +189,29 @@ export default function LeaderboardPage() {
                   <div className="col-span-2">Total Earnings</div>
                 </div>
 
-                {earningsLeaderboard.length === 0 ? (
+                {loading ? (
+                  renderSkeletonRows()
+                ) : earningsLeaderboard.length === 0 ? (
                   <div className="p-8 text-center">
                     <TrendingUp className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                     <p className="text-muted-foreground">No earnings data available for this period</p>
                   </div>
                 ) : (
                   earningsLeaderboard.map((affiliate) => (
-                    <div key={affiliate.id} className="grid grid-cols-12 gap-4 border-t p-4 items-center">
+                    <div
+                      key={affiliate.id}
+                      className={`grid grid-cols-12 gap-4 border-t p-4 items-center ${
+                        affiliate.rank <= 3 ? "bg-muted/20" : ""
+                      }`}
+                    >
                       <div className="col-span-1">
                         <Badge
                           variant="outline"
-                          className={`w-8 h-8 rounded-full flex items-center justify-center p-0 ${getRankBadgeColor(affiliate.rank)}`}
+                          className={`w-8 h-8 rounded-full flex items-center justify-center p-0 ${getRankBadgeColor(
+                            affiliate.rank,
+                          )}`}
                         >
-                          {affiliate.rank}
+                          {getRankIcon(affiliate.rank) || affiliate.rank}
                         </Badge>
                       </div>
                       <div className="col-span-3 flex items-center gap-2">
@@ -175,9 +225,9 @@ export default function LeaderboardPage() {
                         <span className="font-medium truncate">{affiliate.name}</span>
                       </div>
                       <div className="col-span-2 text-muted-foreground">@{affiliate.username}</div>
-                      <div className="col-span-2">{affiliate.transactionCount} sales</div>
-                      <div className="col-span-2">{formatCurrency(affiliate.directEarnings)}</div>
-                      <div className="col-span-2 font-semibold">{formatCurrency(affiliate.totalEarnings)}</div>
+                      <div className="col-span-2">{affiliate.transactionCount || 0} sales</div>
+                      <div className="col-span-2">{formatCurrency(affiliate.directEarnings || 0)}</div>
+                      <div className="col-span-2 font-semibold">{formatCurrency(affiliate.totalEarnings || 0)}</div>
                     </div>
                   ))
                 )}
@@ -189,32 +239,44 @@ export default function LeaderboardPage() {
         <TabsContent value="referrals">
           <Card>
             <CardHeader>
-              <CardTitle>Most Referrals</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-primary" />
+                Most Referrals
+              </CardTitle>
               <CardDescription>Affiliates who have referred the most users</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="rounded-md border">
-                <div className="grid grid-cols-12 gap-4 p-4 font-medium">
+                <div className="grid grid-cols-12 gap-4 p-4 font-medium bg-muted/50">
                   <div className="col-span-1">Rank</div>
                   <div className="col-span-3">Affiliate</div>
                   <div className="col-span-3">Username</div>
                   <div className="col-span-5">Total Referrals</div>
                 </div>
 
-                {referralsLeaderboard.length === 0 ? (
+                {loading ? (
+                  renderSkeletonRows()
+                ) : referralsLeaderboard.length === 0 ? (
                   <div className="p-8 text-center">
                     <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                     <p className="text-muted-foreground">No referral data available yet</p>
                   </div>
                 ) : (
                   referralsLeaderboard.map((affiliate) => (
-                    <div key={affiliate.id} className="grid grid-cols-12 gap-4 border-t p-4 items-center">
+                    <div
+                      key={affiliate.id}
+                      className={`grid grid-cols-12 gap-4 border-t p-4 items-center ${
+                        affiliate.rank <= 3 ? "bg-muted/20" : ""
+                      }`}
+                    >
                       <div className="col-span-1">
                         <Badge
                           variant="outline"
-                          className={`w-8 h-8 rounded-full flex items-center justify-center p-0 ${getRankBadgeColor(affiliate.rank)}`}
+                          className={`w-8 h-8 rounded-full flex items-center justify-center p-0 ${getRankBadgeColor(
+                            affiliate.rank,
+                          )}`}
                         >
-                          {affiliate.rank}
+                          {getRankIcon(affiliate.rank) || affiliate.rank}
                         </Badge>
                       </div>
                       <div className="col-span-3 flex items-center gap-2">
@@ -234,7 +296,10 @@ export default function LeaderboardPage() {
                             <div
                               className="h-full bg-primary rounded-full"
                               style={{
-                                width: `${Math.min(100, (affiliate.referrals! / (referralsLeaderboard[0]?.referrals || 1)) * 100)}%`,
+                                width: `${Math.min(
+                                  100,
+                                  (affiliate.referrals! / (referralsLeaderboard[0]?.referrals || 1)) * 100,
+                                )}%`,
                               }}
                             />
                           </div>

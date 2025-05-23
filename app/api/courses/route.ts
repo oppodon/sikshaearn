@@ -118,6 +118,7 @@ export async function POST(request: Request) {
 
     await connectToDatabase()
     const data = await request.json()
+    console.log("Creating course with data:", data)
 
     // Validate required fields
     if (!data.title) {
@@ -126,10 +127,6 @@ export async function POST(request: Request) {
 
     if (!data.description) {
       return NextResponse.json({ error: "Course description is required" }, { status: 400 })
-    }
-
-    if (!data.instructor) {
-      return NextResponse.json({ error: "Course instructor is required" }, { status: 400 })
     }
 
     // Create slug from title
@@ -144,6 +141,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "A course with this title already exists" }, { status: 400 })
     }
 
+    // Process instructor data
+    let instructorData = data.instructor
+    if (typeof instructorData === "object" && !instructorData.name) {
+      // If instructor is an object but name is empty, use a default string
+      instructorData = "Instructor"
+    }
+
+    // Process video lessons
+    const videoLessons = data.videoLessons || []
+    videoLessons.forEach((lesson: any) => {
+      // Ensure videoUrl is a string
+      if (!lesson.videoUrl) {
+        lesson.videoUrl = ""
+      }
+    })
+
     // Start a session for transaction
     const dbSession = await mongoose.startSession()
     dbSession.startTransaction()
@@ -154,11 +167,12 @@ export async function POST(request: Request) {
         title: data.title,
         slug,
         description: data.description,
-        instructor: data.instructor,
+        instructor: instructorData,
         thumbnail: data.thumbnail || "/placeholder.svg?height=200&width=300",
-        videoLessons: data.videoLessons || [],
+        videoLessons: videoLessons,
         status: data.status || "draft",
         packages: data.packages || [],
+        price: data.price || 0, // Default price to 0 if not provided
         createdBy: session.user.id,
       })
 

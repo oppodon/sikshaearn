@@ -142,6 +142,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Update user balance
+    try {
+      const user = await User.findById(transaction.user._id)
+      if (!user) {
+        console.error("User not found:", transaction.user._id)
+        return NextResponse.json({ message: "User not found" }, { status: 404 })
+      }
+
+      const packagePrice = packageData.price || 0
+      user.balance = (user.balance || 0) + packagePrice
+      await user.save()
+
+      console.log(`User balance updated: ${transaction.user._id}, new balance: ${user.balance}`)
+    } catch (error) {
+      console.error("Error updating user balance:", error)
+      // Optionally, handle the error further, e.g., by logging or sending a notification.
+    }
+
     return NextResponse.json({
       message: "Transaction approved and commissions processed successfully",
       transactionId: transaction._id,

@@ -4,7 +4,10 @@ import { authOptions } from "@/lib/auth"
 import dbConnect from "@/lib/mongodb"
 import Withdrawal from "@/models/Withdrawal"
 import AffiliateEarning from "@/models/AffiliateEarning"
+import User from "@/models/User"
+import { BalanceService } from "@/lib/balance-service"
 import mongoose from "mongoose"
+import { sendWithdrawalStatusEmail } from "@/lib/mail"
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,7 +31,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Find the withdrawal
-    const withdrawal = await Withdrawal.findById(withdrawalId)
+    const withdrawal = await Withdrawal.findById(withdrawalId).populate("user", "name email")
 
     if (!withdrawal) {
       return NextResponse.json({ message: "Withdrawal not found" }, { status: 404 })
@@ -62,6 +65,38 @@ export async function POST(req: NextRequest) {
           { status: "withdrawn" },
           { session: mongoSession },
         )
+
+        // Update user's balance
+        await User.findByIdAndUpdate(
+          withdrawal.user._id,
+          {
+            $inc: {
+              pendingWithdrawals: -withdrawal.amount,
+              totalWithdrawn: withdrawal.amount,
+            },
+          },
+          { session: mongoSession },
+        )
+
+        // Complete the withdrawal in the balance service
+        await BalanceService.completeWithdrawal({
+          userId: withdrawal.user._id,
+          amount: withdrawal.amount,
+          withdrawalId: withdrawal._id,
+        })
+
+        // Send email notification
+        if (withdrawal.user.email) {
+          await sendWithdrawalStatusEmail({
+            email: withdrawal.user.email,
+            name: withdrawal.user.name || "User",
+            status: "approved",
+            amount: withdrawal.amount,
+            transactionId,
+            method: withdrawal.method,
+            date: new Date().toISOString(),
+          })
+        }
       } else if (action === "reject") {
         if (!rejectionReason) {
           return NextResponse.json({ message: "Rejection reason is required" }, { status: 400 })
@@ -81,6 +116,26 @@ export async function POST(req: NextRequest) {
           { status: "available", withdrawalId: null },
           { session: mongoSession },
         )
+
+        // Update user's balance
+        await User.findByIdAndUpdate(
+          withdrawal.user._id,
+          { $inc: { pendingWithdrawals: -withdrawal.amount } },
+          { session: mongoSession },
+        )
+
+        // Send email notification
+        if (withdrawal.user.email) {
+          await sendWithdrawalStatusEmail({
+            email: withdrawal.user.email,
+            name: withdrawal.user.name || "User",
+            status: "rejected",
+            amount: withdrawal.amount,
+            reason: rejectionReason,
+            method: withdrawal.method,
+            date: new Date().toISOString(),
+          })
+        }
       }
 
       await mongoSession.commitTransaction()

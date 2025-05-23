@@ -1,16 +1,14 @@
 import type { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
-import { MongoDBAdapter } from "@auth/mongodb-adapter"
-import clientPromise from "@/lib/mongodb-adapter"
 import dbConnect from "@/lib/mongodb"
 import User from "@/models/User"
 import { compare } from "bcryptjs"
 
 export const authOptions: NextAuthOptions = {
-  adapter: MongoDBAdapter(clientPromise),
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   pages: {
     signIn: "/login",
@@ -23,14 +21,12 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      profile(profile) {
-        return {
-          id: profile.sub,
-          name: profile.name,
-          email: profile.email,
-          image: profile.picture,
-          role: "user",
-        }
+      authorization: {
+        params: {
+          prompt: "consent",
+          access_type: "offline",
+          response_type: "code",
+        },
       },
     }),
     CredentialsProvider({
@@ -56,7 +52,7 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Please verify your email before logging in")
         }
 
-        const isPasswordValid = await compare(credentials.password, user.password)
+        const isPasswordValid = await compare(credentials.password, user.password || "")
 
         if (!isPasswordValid) {
           throw new Error("Invalid password")
@@ -73,20 +69,136 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id
-        token.role = user.role
+    async signIn({ user, account, profile }) {
+      try {
+        await dbConnect()
+
+        if (account?.provider === "google") {
+          // Check if user already exists
+          let existingUser = await User.findOne({ email: user.email })
+
+          if (!existingUser) {
+            // Create new user for Google sign-in
+            existingUser = await User.create({
+              name: user.name,
+              email: user.email,
+              image: user.image,
+              role: "user",
+              status: "active",
+              emailVerified: new Date(),
+              provider: "google",
+              lastLogin: new Date(),
+            })
+            console.log("✅ New Google user created:", existingUser._id)
+          } else {
+            // Update existing user
+            await User.findByIdAndUpdate(existingUser._id, {
+              image: user.image,
+              emailVerified: existingUser.emailVerified || new Date(),
+              lastLogin: new Date(),
+              provider: existingUser.provider || "google",
+            })
+            console.log("✅ Existing user updated:", existingUser._id)
+          }
+
+          // Set user data for JWT - CRITICAL for session
+          user.id = existingUser._id.toString()
+          user.role = existingUser.role
+          user.name = existingUser.name
+          user.email = existingUser.email
+
+          return true
+        }
+
+        return true
+      } catch (error) {
+        console.error("❌ Error in signIn callback:", error)
+        return false
       }
+    },
+
+    async jwt({ token, user, account, trigger }) {
+      // Initial sign in or when user data is updated
+      if (user) {
+        console.log("🔑 Setting JWT token for user:", user.email)
+        token.id = user.id
+        token.role = user.role || "user"
+        token.name = user.name
+        token.email = user.email
+        token.picture = user.image
+      }
+
+      // Always ensure we have user data in token
+      if (!token.id && token.email) {
+        try {
+          await dbConnect()
+          const dbUser = await User.findOne({ email: token.email }).lean()
+          if (dbUser) {
+            token.id = dbUser._id.toString()
+            token.role = dbUser.role
+            token.name = dbUser.name
+            console.log("🔄 Refreshed token from database for:", token.email)
+          }
+        } catch (error) {
+          console.error("❌ Error refreshing token:", error)
+        }
+      }
+
       return token
     },
+
     async session({ session, token }) {
-      if (token) {
+      if (token && token.id) {
         session.user.id = token.id as string
         session.user.role = token.role as string
+        session.user.name = token.name as string
+        session.user.email = token.email as string
+        session.user.image = token.picture as string
+
+        console.log("📋 Session established for:", session.user.email, "Role:", session.user.role)
+      } else {
+        console.log("⚠️ No token ID found in session callback")
       }
+
       return session
     },
+
+    async redirect({ url, baseUrl }) {
+      console.log("🔄 Redirect callback - URL:", url, "BaseURL:", baseUrl)
+
+      // If it's a relative URL, make it absolute
+      if (url.startsWith("/")) {
+        return `${baseUrl}${url}`
+      }
+
+      // If it's the same origin, allow it
+      if (new URL(url).origin === baseUrl) {
+        return url
+      }
+
+      // Default redirect to dashboard
+      return `${baseUrl}/dashboard`
+    },
   },
+
+  events: {
+    async signIn({ user, account, isNewUser }) {
+      console.log("🎉 SignIn event triggered:", {
+        email: user.email,
+        provider: account?.provider,
+        isNewUser,
+        userId: user.id,
+      })
+    },
+    async session({ session, token }) {
+      console.log("📱 Session event:", {
+        userId: session.user?.id,
+        email: session.user?.email,
+        hasToken: !!token,
+      })
+    },
+  },
+
+  debug: true, // Enable debug mode
   secret: process.env.NEXTAUTH_SECRET,
 }

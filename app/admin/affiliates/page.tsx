@@ -1,103 +1,241 @@
-import { Button } from "@/components/ui/button"
+"use client"
+
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Download, Filter, MoreHorizontal, Search, UserPlus } from "lucide-react"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Search, Download, Filter, UserPlus, MoreHorizontal } from "lucide-react"
+import { toast } from "sonner"
+
+interface Affiliate {
+  _id: string
+  name: string
+  email: string
+  status: string
+  referrals: number
+  earnings: number
+  joinedAt: string
+}
 
 export default function AffiliatesPage() {
+  const [affiliates, setAffiliates] = useState<Affiliate[]>([])
+  const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    totalCommissions: 0,
+    pendingPayouts: 0,
+  })
+
+  useEffect(() => {
+    const fetchAffiliates = async () => {
+      try {
+        // This would be replaced with a real API call
+        // const response = await fetch("/api/admin/affiliates")
+        // const data = await response.json()
+
+        // Mock data for demonstration
+        const mockAffiliates = [
+          {
+            _id: "aff1",
+            name: "Rahul Sharma",
+            email: "rahul.sharma@example.com",
+            status: "active",
+            referrals: 24,
+            earnings: 12450,
+            joinedAt: "2023-01-15T00:00:00Z",
+          },
+          {
+            _id: "aff2",
+            name: "Priya Patel",
+            email: "priya.patel@example.com",
+            status: "active",
+            referrals: 18,
+            earnings: 9800,
+            joinedAt: "2023-02-22T00:00:00Z",
+          },
+          {
+            _id: "aff3",
+            name: "Amit Kumar",
+            email: "amit.kumar@example.com",
+            status: "pending",
+            referrals: 0,
+            earnings: 0,
+            joinedAt: "2023-03-10T00:00:00Z",
+          },
+          {
+            _id: "aff4",
+            name: "Sneha Gupta",
+            email: "sneha.gupta@example.com",
+            status: "inactive",
+            referrals: 5,
+            earnings: 3200,
+            joinedAt: "2023-01-05T00:00:00Z",
+          },
+          {
+            _id: "aff5",
+            name: "Vikram Singh",
+            email: "vikram.singh@example.com",
+            status: "active",
+            referrals: 32,
+            earnings: 18700,
+            joinedAt: "2022-11-12T00:00:00Z",
+          },
+        ]
+
+        setAffiliates(mockAffiliates)
+
+        // Calculate stats
+        const active = mockAffiliates.filter((a) => a.status === "active").length
+        const totalEarnings = mockAffiliates.reduce((sum, a) => sum + a.earnings, 0)
+
+        setStats({
+          total: mockAffiliates.length,
+          active: active,
+          totalCommissions: totalEarnings,
+          pendingPayouts: Math.round(totalEarnings * 0.15), // 15% of total earnings for demo
+        })
+      } catch (error) {
+        console.error("Error fetching affiliates:", error)
+        toast.error("Failed to load affiliate data")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAffiliates()
+  }, [])
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "active":
+        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Active</Badge>
+      case "pending":
+        return (
+          <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">
+            Pending
+          </Badge>
+        )
+      case "inactive":
+        return (
+          <Badge variant="outline" className="bg-gray-100 text-gray-800 border-gray-200">
+            Inactive
+          </Badge>
+        )
+      default:
+        return <Badge variant="outline">{status}</Badge>
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
+  }
+
+  if (loading) {
+    return (
+      <div className="container mx-auto py-10">
+        <h1 className="text-3xl font-bold mb-6">Affiliate Management</h1>
+        <div className="grid gap-6 md:grid-cols-4 mb-6">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i} className="animate-pulse">
+              <CardHeader className="pb-2">
+                <div className="h-4 bg-muted rounded w-24"></div>
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 bg-muted rounded w-16"></div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <h1 className="text-2xl font-bold tracking-tight">Affiliate Management</h1>
-        <div className="flex items-center gap-2">
-          <Button>
-            <UserPlus className="mr-2 h-4 w-4" />
-            Add New Affiliate
+    <div className="container mx-auto py-10">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold">Affiliate Management</h1>
+        <Button>
+          <UserPlus className="mr-2 h-4 w-4" /> Add New Affiliate
+        </Button>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-4 mb-8">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Total Affiliates</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.total}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Active Affiliates</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.active}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Total Commissions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">₹{stats.totalCommissions.toLocaleString()}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Pending Payouts</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">₹{stats.pendingPayouts.toLocaleString()}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-bold">Affiliates</h2>
+        <div className="flex items-center space-x-2">
+          <div className="relative w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input type="search" placeholder="Search affiliates..." className="w-full bg-background pl-8" />
+          </div>
+          <Button variant="outline" size="sm">
+            <Filter className="mr-2 h-4 w-4" /> Filter
+          </Button>
+          <Button variant="outline" size="sm">
+            <Download className="mr-2 h-4 w-4" /> Export
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex flex-col items-center gap-2 text-center">
-              <h3 className="text-sm font-medium text-muted-foreground">Total Affiliates</h3>
-              <p className="text-3xl font-bold">128</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex flex-col items-center gap-2 text-center">
-              <h3 className="text-sm font-medium text-muted-foreground">Active Affiliates</h3>
-              <p className="text-3xl font-bold">98</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex flex-col items-center gap-2 text-center">
-              <h3 className="text-sm font-medium text-muted-foreground">Total Commissions</h3>
-              <p className="text-3xl font-bold">₹245,890</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex flex-col items-center gap-2 text-center">
-              <h3 className="text-sm font-medium text-muted-foreground">Pending Payouts</h3>
-              <p className="text-3xl font-bold">₹32,450</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Tabs defaultValue="all">
+        <TabsList className="mb-6">
+          <TabsTrigger value="all">All Affiliates</TabsTrigger>
+          <TabsTrigger value="active">Active</TabsTrigger>
+          <TabsTrigger value="pending">Pending</TabsTrigger>
+          <TabsTrigger value="inactive">Inactive</TabsTrigger>
+        </TabsList>
 
-      <Card>
-        <CardHeader className="flex flex-col gap-4 space-y-0 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle>Affiliates</CardTitle>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Search affiliates..."
-                className="w-full pl-8 sm:w-[300px] md:w-[200px] lg:w-[300px]"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon">
-                <Filter className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="icon">
-                <Download className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="all" className="w-full">
-            <TabsList className="mb-4 grid w-full grid-cols-4">
-              <TabsTrigger value="all">All Affiliates</TabsTrigger>
-              <TabsTrigger value="active">Active</TabsTrigger>
-              <TabsTrigger value="pending">Pending</TabsTrigger>
-              <TabsTrigger value="inactive">Inactive</TabsTrigger>
-            </TabsList>
-
-            <div className="rounded-md border">
+        <TabsContent value="all">
+          <Card>
+            <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[50px]">ID</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Status</TableHead>
@@ -109,182 +247,160 @@ export default function AffiliatesPage() {
                 </TableHeader>
                 <TableBody>
                   {affiliates.map((affiliate) => (
-                    <TableRow key={affiliate.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={affiliate.avatar || "/placeholder.svg"} alt={affiliate.name} />
-                            <AvatarFallback>
-                              {affiliate.name
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="font-medium">{affiliate.name}</div>
-                        </div>
+                    <TableRow key={affiliate._id}>
+                      <TableCell className="font-medium">
+                        {affiliate.name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")}
                       </TableCell>
+                      <TableCell>{affiliate.name}</TableCell>
                       <TableCell>{affiliate.email}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={
-                            affiliate.status === "active"
-                              ? "border-green-200 bg-green-50 text-green-700"
-                              : affiliate.status === "pending"
-                                ? "border-amber-200 bg-amber-50 text-amber-700"
-                                : "border-gray-200 bg-gray-50 text-gray-700"
-                          }
-                        >
-                          {affiliate.status.charAt(0).toUpperCase() + affiliate.status.slice(1)}
-                        </Badge>
-                      </TableCell>
+                      <TableCell>{getStatusBadge(affiliate.status)}</TableCell>
                       <TableCell>{affiliate.referrals}</TableCell>
-                      <TableCell>₹{affiliate.earnings}</TableCell>
-                      <TableCell>{affiliate.joined}</TableCell>
+                      <TableCell>₹{affiliate.earnings.toLocaleString()}</TableCell>
+                      <TableCell>{formatDate(affiliate.joinedAt)}</TableCell>
                       <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Actions</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem>View Profile</DropdownMenuItem>
-                            <DropdownMenuItem>Edit Affiliate</DropdownMenuItem>
-                            <DropdownMenuItem>View Earnings</DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-red-600">Deactivate Affiliate</DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <Button variant="ghost" size="icon">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-            </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-            <div className="mt-4 flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">
-                Showing <strong>1-10</strong> of <strong>128</strong> affiliates
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" disabled>
-                  Previous
-                </Button>
-                <Button variant="outline" size="sm">
-                  Next
-                </Button>
-              </div>
-            </div>
-          </Tabs>
-        </CardContent>
-      </Card>
+        <TabsContent value="active">
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[50px]">ID</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Referrals</TableHead>
+                    <TableHead>Earnings</TableHead>
+                    <TableHead>Joined</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {affiliates
+                    .filter((a) => a.status === "active")
+                    .map((affiliate) => (
+                      <TableRow key={affiliate._id}>
+                        <TableCell className="font-medium">
+                          {affiliate.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")}
+                        </TableCell>
+                        <TableCell>{affiliate.name}</TableCell>
+                        <TableCell>{affiliate.email}</TableCell>
+                        <TableCell>{affiliate.referrals}</TableCell>
+                        <TableCell>₹{affiliate.earnings.toLocaleString()}</TableCell>
+                        <TableCell>{formatDate(affiliate.joinedAt)}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="pending">
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[50px]">ID</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Joined</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {affiliates
+                    .filter((a) => a.status === "pending")
+                    .map((affiliate) => (
+                      <TableRow key={affiliate._id}>
+                        <TableCell className="font-medium">
+                          {affiliate.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")}
+                        </TableCell>
+                        <TableCell>{affiliate.name}</TableCell>
+                        <TableCell>{affiliate.email}</TableCell>
+                        <TableCell>{formatDate(affiliate.joinedAt)}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="inactive">
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[50px]">ID</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Referrals</TableHead>
+                    <TableHead>Earnings</TableHead>
+                    <TableHead>Joined</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {affiliates
+                    .filter((a) => a.status === "inactive")
+                    .map((affiliate) => (
+                      <TableRow key={affiliate._id}>
+                        <TableCell className="font-medium">
+                          {affiliate.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")}
+                        </TableCell>
+                        <TableCell>{affiliate.name}</TableCell>
+                        <TableCell>{affiliate.email}</TableCell>
+                        <TableCell>{affiliate.referrals}</TableCell>
+                        <TableCell>₹{affiliate.earnings.toLocaleString()}</TableCell>
+                        <TableCell>{formatDate(affiliate.joinedAt)}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
-
-const affiliates = [
-  {
-    id: 1,
-    name: "Rahul Sharma",
-    email: "rahul.sharma@example.com",
-    status: "active",
-    referrals: 24,
-    earnings: 12450,
-    joined: "Jan 15, 2023",
-    avatar: "/placeholder-user.jpg",
-  },
-  {
-    id: 2,
-    name: "Priya Patel",
-    email: "priya.patel@example.com",
-    status: "active",
-    referrals: 18,
-    earnings: 9800,
-    joined: "Feb 22, 2023",
-    avatar: "/placeholder-user.jpg",
-  },
-  {
-    id: 3,
-    name: "Amit Kumar",
-    email: "amit.kumar@example.com",
-    status: "pending",
-    referrals: 0,
-    earnings: 0,
-    joined: "Mar 10, 2023",
-    avatar: "/placeholder-user.jpg",
-  },
-  {
-    id: 4,
-    name: "Neha Gupta",
-    email: "neha.gupta@example.com",
-    status: "active",
-    referrals: 15,
-    earnings: 7500,
-    joined: "Apr 05, 2023",
-    avatar: "/placeholder-user.jpg",
-  },
-  {
-    id: 5,
-    name: "Vikram Singh",
-    email: "vikram.singh@example.com",
-    status: "inactive",
-    referrals: 3,
-    earnings: 1200,
-    joined: "May 18, 2023",
-    avatar: "/placeholder-user.jpg",
-  },
-  {
-    id: 6,
-    name: "Ananya Desai",
-    email: "ananya.desai@example.com",
-    status: "active",
-    referrals: 21,
-    earnings: 10500,
-    joined: "Jun 30, 2023",
-    avatar: "/placeholder-user.jpg",
-  },
-  {
-    id: 7,
-    name: "Rajesh Khanna",
-    email: "rajesh.khanna@example.com",
-    status: "active",
-    referrals: 12,
-    earnings: 6000,
-    joined: "Jul 12, 2023",
-    avatar: "/placeholder-user.jpg",
-  },
-  {
-    id: 8,
-    name: "Meera Joshi",
-    email: "meera.joshi@example.com",
-    status: "active",
-    referrals: 9,
-    earnings: 4500,
-    joined: "Aug 05, 2023",
-    avatar: "/placeholder-user.jpg",
-  },
-  {
-    id: 9,
-    name: "Arjun Reddy",
-    email: "arjun.reddy@example.com",
-    status: "inactive",
-    referrals: 2,
-    earnings: 1000,
-    joined: "Sep 20, 2023",
-    avatar: "/placeholder-user.jpg",
-  },
-  {
-    id: 10,
-    name: "Kavita Sharma",
-    email: "kavita.sharma@example.com",
-    status: "active",
-    referrals: 16,
-    earnings: 8000,
-    joined: "Oct 14, 2023",
-    avatar: "/placeholder-user.jpg",
-  },
-]

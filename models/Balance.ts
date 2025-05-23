@@ -1,60 +1,56 @@
-import mongoose, { Schema, type Document } from "mongoose"
+import mongoose from "mongoose"
 
-export interface IBalance extends Document {
+export interface IBalance extends mongoose.Document {
   user: mongoose.Types.ObjectId
-  totalEarnings: number
-  availableBalance: number
-  pendingBalance: number
-  withdrawnBalance: number
-  processingBalance: number
-  lastUpdated: Date
+  available: number
+  pending: number
+  processing: number
+  withdrawn: number
+  lastSyncedAt: Date
   createdAt: Date
   updatedAt: Date
 }
 
-const BalanceSchema = new Schema(
+const BalanceSchema = new mongoose.Schema<IBalance>(
   {
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: [true, "User is required"],
-      unique: true,
+      required: true,
+      index: true,
     },
-    totalEarnings: {
+    available: {
       type: Number,
       default: 0,
-      min: [0, "Total earnings cannot be negative"],
+      min: 0,
     },
-    availableBalance: {
+    pending: {
       type: Number,
       default: 0,
-      min: [0, "Available balance cannot be negative"],
+      min: 0,
     },
-    pendingBalance: {
+    processing: {
       type: Number,
       default: 0,
-      min: [0, "Pending balance cannot be negative"],
+      min: 0,
     },
-    withdrawnBalance: {
+    withdrawn: {
       type: Number,
       default: 0,
-      min: [0, "Withdrawn balance cannot be negative"],
+      min: 0,
     },
-    processingBalance: {
-      type: Number,
-      default: 0,
-      min: [0, "Processing balance cannot be negative"],
-    },
-    lastUpdated: {
+    lastSyncedAt: {
       type: Date,
       default: Date.now,
     },
   },
-  {
-    timestamps: true,
-  },
+  { timestamps: true },
 )
 
+// Create a unique compound index on user
+BalanceSchema.index({ user: 1 }, { unique: true })
+
+// Prevent mongoose from creating a new model if it already exists
 const Balance = mongoose.models.Balance || mongoose.model<IBalance>("Balance", BalanceSchema)
 
 export default Balance

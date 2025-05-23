@@ -1,90 +1,59 @@
-import mongoose, { Schema, type Document } from "mongoose"
+import mongoose from "mongoose"
 
-export interface IBalanceTransaction extends Document {
+export interface IBalanceTransaction extends mongoose.Document {
   user: mongoose.Types.ObjectId
-  type: "credit" | "debit"
-  category: "commission" | "withdrawal" | "refund" | "adjustment"
   amount: number
+  type: "credit" | "debit" | "sync" | "adjustment"
   description: string
-  referenceId?: mongoose.Types.ObjectId
-  referenceType?: string
-  tier?: number
   status: "pending" | "completed" | "failed" | "cancelled"
-  balanceBefore: number
-  balanceAfter: number
+  reference?: string
   metadata?: Record<string, any>
   createdAt: Date
   updatedAt: Date
 }
 
-const BalanceTransactionSchema = new Schema(
+const BalanceTransactionSchema = new mongoose.Schema<IBalanceTransaction>(
   {
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: [true, "User is required"],
+      required: true,
       index: true,
-    },
-    type: {
-      type: String,
-      enum: ["credit", "debit"],
-      required: [true, "Transaction type is required"],
-    },
-    category: {
-      type: String,
-      enum: ["commission", "withdrawal", "refund", "adjustment"],
-      required: [true, "Transaction category is required"],
     },
     amount: {
       type: Number,
-      required: [true, "Amount is required"],
-      min: [0, "Amount must be positive"],
+      required: true,
+    },
+    type: {
+      type: String,
+      enum: ["credit", "debit", "sync", "adjustment"],
+      required: true,
     },
     description: {
       type: String,
-      required: [true, "Description is required"],
-    },
-    referenceId: {
-      type: mongoose.Schema.Types.ObjectId,
-      default: null,
-    },
-    referenceType: {
-      type: String,
-      default: null,
-    },
-    tier: {
-      type: Number,
-      enum: [1, 2],
-      default: null,
+      required: true,
     },
     status: {
       type: String,
       enum: ["pending", "completed", "failed", "cancelled"],
       default: "pending",
     },
-    balanceBefore: {
-      type: Number,
-      required: [true, "Balance before transaction is required"],
-    },
-    balanceAfter: {
-      type: Number,
-      required: [true, "Balance after transaction is required"],
+    reference: {
+      type: String,
     },
     metadata: {
-      type: Schema.Types.Mixed,
-      default: {},
+      type: mongoose.Schema.Types.Mixed,
     },
   },
-  {
-    timestamps: true,
-  },
+  { timestamps: true },
 )
 
-// Indexes for faster queries
+// Create indexes for common queries
 BalanceTransactionSchema.index({ user: 1, createdAt: -1 })
-BalanceTransactionSchema.index({ referenceId: 1, referenceType: 1 })
 BalanceTransactionSchema.index({ status: 1 })
+BalanceTransactionSchema.index({ type: 1 })
 
+// Prevent mongoose from creating a new model if it already exists
 const BalanceTransaction =
   mongoose.models.BalanceTransaction ||
   mongoose.model<IBalanceTransaction>("BalanceTransaction", BalanceTransactionSchema)

@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs"
 export interface IUser extends mongoose.Document {
   name: string
   email: string
-  password: string
+  password?: string
   image?: string
   username?: string
   bio?: string
@@ -24,6 +24,8 @@ export interface IUser extends mongoose.Document {
   referralClicks?: number
   referralEarnings?: number
   tier2Earnings?: number
+  provider?: string
+  lastLogin?: Date
   createdAt: Date
   updatedAt: Date
   comparePassword(candidatePassword: string): Promise<boolean>
@@ -50,9 +52,17 @@ const UserSchema = new mongoose.Schema<IUser>(
     },
     password: {
       type: String,
-      required: [true, "Please provide a password"],
+      required: function () {
+        // Only require password if provider is not set (i.e., local auth)
+        return !this.provider
+      },
       minlength: [8, "Password must be at least 8 characters"],
       select: false,
+    },
+    provider: {
+      type: String,
+      enum: ["google", "facebook", null],
+      default: null,
     },
     image: {
       type: String,
@@ -95,7 +105,7 @@ const UserSchema = new mongoose.Schema<IUser>(
     status: {
       type: String,
       enum: ["active", "banned", "pending"],
-      default: "pending",
+      default: "active", // Set default to active for OAuth users
     },
     referralCode: {
       type: String,
@@ -124,13 +134,18 @@ const UserSchema = new mongoose.Schema<IUser>(
       type: Number,
       default: 0,
     },
+    lastLogin: {
+      type: Date,
+      default: Date.now,
+    },
   },
   { timestamps: true },
 )
 
 // Hash password before saving
 UserSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next()
+  // Only hash the password if it's modified and exists
+  if (!this.isModified("password") || !this.password) return next()
 
   try {
     const salt = await bcrypt.genSalt(10)
@@ -143,6 +158,7 @@ UserSchema.pre("save", async function (next) {
 
 // Compare password method
 UserSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
+  if (!this.password) return false
   return bcrypt.compare(candidatePassword, this.password)
 }
 

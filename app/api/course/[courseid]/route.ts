@@ -4,18 +4,19 @@ import { authOptions } from "@/lib/auth"
 import { connectToDatabase } from "@/lib/mongodb"
 import Course from "@/models/Course"
 import Enrollment from "@/models/Enrollment"
-import Package from "@/models/Package"
+import Transaction from "@/models/Transaction"
+import mongoose from "mongoose"
 
-export async function GET(req: NextRequest, { params }: { params: { courseid: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { courseid: string } }) {
   try {
     const session = await getServerSession(authOptions)
-
-    if (!session?.user?.id) {
+    if (!session || !session.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     await connectToDatabase()
-    const { courseid } = params
+    // Await params in Next.js 15
+    const { courseid } = await params
 
     // Find course by ID
     const course = await Course.findById(courseid).lean()
@@ -24,85 +25,111 @@ export async function GET(req: NextRequest, { params }: { params: { courseid: st
       return NextResponse.json({ error: "Course not found" }, { status: 404 })
     }
 
-    // Find packages that contain this course
-    const packages = await Package.find({
-      courses: { $in: [courseid] },
-    })
-      .select("_id")
-      .lean()
+    // Check if user has access to this course
+    const userId = session.user.id
 
-    if (!packages || packages.length === 0) {
-      return NextResponse.json({ error: "Course not available in any package" }, { status: 404 })
-    }
-
-    const packageIds = packages.map((pkg) => pkg._id)
-
-    // Check if user is enrolled in any package containing this course
-    const enrollment = await Enrollment.findOne({
-      user: session.user.id,
-      package: { $in: packageIds },
+    // Find enrollment for this course
+    let enrollment = await Enrollment.findOne({
+      user: userId,
+      courseId: courseid,
       isActive: true,
     }).lean()
 
+    // If no direct enrollment, check if user has access through a package
     if (!enrollment) {
-      return NextResponse.json({ error: "Not enrolled in this course" }, { status: 403 })
+      // Find all enrollments for packages that contain this course
+      const packageEnrollments = await Enrollment.find({
+        user: userId,
+        isActive: true,
+      })
+        .populate({
+          path: "package",
+          select: "courses",
+          match: { courses: { $in: [new mongoose.Types.ObjectId(courseid)] } },
+        })
+        .lean()
+
+      // Filter out enrollments where package is null (meaning the package doesn't contain this course)
+      const validPackageEnrollments = packageEnrollments.filter((e) => e.package)
+
+      if (validPackageEnrollments.length === 0) {
+        // Check if user has approved transactions for packages containing this course
+        const approvedTransactions = await Transaction.find({
+          user: userId,
+          status: "approved",
+        })
+          .populate({
+            path: "package",
+            select: "courses",
+            match: { courses: { $in: [new mongoose.Types.ObjectId(courseid)] } },
+          })
+          .lean()
+
+        // Filter out transactions where package is null
+        const validTransactions = approvedTransactions.filter((t) => t.package)
+
+        if (validTransactions.length === 0) {
+          return NextResponse.json({ error: "You don't have access to this course" }, { status: 403 })
+        }
+
+        // User has approved transactions but no enrollment - create one
+        const transaction = validTransactions[0]
+        enrollment = await Enrollment.create({
+          user: userId,
+          package: transaction.package._id,
+          transaction: transaction._id,
+          startDate: new Date(),
+          isActive: true,
+        })
+      } else {
+        enrollment = validPackageEnrollments[0]
+      }
     }
 
-    // Calculate progress
-    const totalLessons = course.videoLessons?.length || 0
+    // Get completed lessons for this user and course
+    const userProgress = await Enrollment.findOne(
+      {
+        user: userId,
+        $or: [{ courseId: courseid }, { package: { $in: course.packages } }],
+      },
+      { completedLessons: 1 },
+    ).lean()
 
-    // Filter completed lessons to only include those from this course
-    const completedLessons =
-      enrollment.completedLessons?.filter((lessonId) =>
-        course.videoLessons.some((lesson) => lesson._id.toString() === lessonId.toString()),
-      ) || []
-
-    const progress = totalLessons > 0 ? Math.round((completedLessons.length / totalLessons) * 100) : 0
-
-    // Calculate total duration
-    const totalDuration = course.videoLessons?.reduce((sum, lesson) => sum + (lesson.duration || 0), 0) || 0
+    const completedLessons = userProgress?.completedLessons || []
 
     // Add locked status to lessons based on completion
-    const lessonsWithLockStatus = course.videoLessons.map((lesson, index) => {
-      // First lesson is always unlocked
-      if (index === 0) {
-        return { ...lesson, isLocked: false }
-      }
+    let lessonsWithLockStatus = []
+    if (course.videoLessons && Array.isArray(course.videoLessons)) {
+      lessonsWithLockStatus = course.videoLessons.map((lesson, index) => {
+        // First lesson is always unlocked
+        if (index === 0) {
+          return { ...lesson, isLocked: false }
+        }
 
-      // Check if previous lesson is completed
-      const previousLesson = course.videoLessons[index - 1]
-      const isPreviousLessonCompleted = completedLessons.some((id) => id.toString() === previousLesson._id.toString())
+        // Check if previous lesson is completed
+        const previousLessonId = course.videoLessons[index - 1]._id.toString()
+        const isPreviousLessonCompleted = completedLessons.some((lessonId) => lessonId.toString() === previousLessonId)
 
-      return {
-        ...lesson,
-        isLocked: !isPreviousLessonCompleted,
-      }
-    })
+        return {
+          ...lesson,
+          isLocked: !isPreviousLessonCompleted,
+        }
+      })
+    } else {
+      // Handle case where videoLessons is undefined or not an array
+      lessonsWithLockStatus = []
+    }
 
-    // Update last accessed timestamp
-    await Enrollment.findByIdAndUpdate(enrollment._id, {
-      lastAccessed: new Date(),
-    })
-
+    // Return course with locked status for lessons
     return NextResponse.json({
       course: {
-        id: course._id,
-        title: course.title,
-        description: course.description,
-        instructor: course.instructor,
-        thumbnail: course.thumbnail,
+        ...course,
         videoLessons: lessonsWithLockStatus,
-        totalDuration,
-        completedLessons,
-        currentLesson: enrollment.currentLesson || course.videoLessons[0]?._id,
-        progress,
-        enrolledAt: enrollment.createdAt,
-        lastAccessed: new Date(),
       },
-      notes: enrollment.notes || {},
+      enrollment,
     })
   } catch (error: any) {
     console.error("Error fetching course:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error.message || "Failed to fetch course" }, { status: 500 })
   }
 }

@@ -63,7 +63,6 @@ export default function EditPackagePage({ params }: { params: { slug: string } }
   const [packageId, setPackageId] = useState("")
 
   const [formData, setFormData] = useState({
-    name: "",
     title: "",
     description: "",
     longDescription: "",
@@ -103,8 +102,7 @@ export default function EditPackagePage({ params }: { params: { slug: string } }
         setPackageId(packageData._id)
 
         setFormData({
-          name: packageData.name || packageData.title || "",
-          title: packageData.title || packageData.name || "",
+          title: packageData.title || "",
           description: packageData.description || "",
           longDescription: packageData.longDescription || "",
           price: packageData.price?.toString() || "0",
@@ -352,11 +350,11 @@ export default function EditPackagePage({ params }: { params: { slug: string } }
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Package Name</Label>
+                <Label htmlFor="title">Package Title</Label>
                 <Input
-                  id="name"
-                  name="name"
-                  value={formData.name}
+                  id="title"
+                  name="title"
+                  value={formData.title}
                   onChange={handleChange}
                   placeholder="e.g. Silver Package"
                   required
@@ -364,16 +362,16 @@ export default function EditPackagePage({ params }: { params: { slug: string } }
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="title">Display Title (Optional)</Label>
+                <Label htmlFor="displayTitle">Display Title (Optional)</Label>
                 <Input
-                  id="title"
-                  name="title"
-                  value={formData.title}
+                  id="displayTitle"
+                  name="displayTitle"
+                  value={formData.displayTitle || ""}
                   onChange={handleChange}
                   placeholder="e.g. Silver Package - Best Value"
                 />
                 <p className="text-xs text-muted-foreground">
-                  If provided, this will be displayed instead of the package name
+                  If provided, this will be displayed instead of the package title
                 </p>
               </div>
 

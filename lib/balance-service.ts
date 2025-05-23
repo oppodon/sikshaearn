@@ -63,10 +63,10 @@ export class BalanceService {
     try {
       // Get or create balance
       const balance = await this.getOrCreateBalance(userId)
-      const balanceBefore = balance.pendingBalance
+      const balanceBefore = balance.availableBalance
 
-      // Add to pending balance (will be available after 14 days)
-      balance.pendingBalance += amount
+      // Add directly to available balance (no pending period)
+      balance.availableBalance += amount
       balance.totalEarnings += amount
       balance.lastUpdated = new Date()
 
@@ -84,9 +84,9 @@ export class BalanceService {
             referenceId: transactionId,
             referenceType: "Transaction",
             tier,
-            status: "pending",
+            status: "completed", // Mark as completed immediately
             balanceBefore,
-            balanceAfter: balance.pendingBalance,
+            balanceAfter: balance.availableBalance,
             metadata: {
               packageId,
               packageTitle,

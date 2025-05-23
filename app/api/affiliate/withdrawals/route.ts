@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth"
 import dbConnect from "@/lib/mongodb"
 import Withdrawal from "@/models/Withdrawal"
 import AffiliateEarning from "@/models/AffiliateEarning"
+import User from "@/models/User"
+import KYC from "@/models/KYC"
 import mongoose from "mongoose"
 
 export async function GET(req: NextRequest) {
@@ -56,6 +58,30 @@ export async function POST(req: NextRequest) {
 
     await dbConnect()
 
+    // Check if user has completed KYC verification
+    const kycStatus = await KYC.findOne({ userId: session.user.id }).lean()
+
+    if (!kycStatus) {
+      return NextResponse.json(
+        {
+          message: "KYC verification is required for withdrawals",
+          kycRequired: true,
+        },
+        { status: 403 },
+      )
+    }
+
+    if (kycStatus.status !== "approved") {
+      return NextResponse.json(
+        {
+          message: `Your KYC verification is ${kycStatus.status}. Approved KYC is required for withdrawals.`,
+          kycStatus: kycStatus.status,
+          kycRequired: true,
+        },
+        { status: 403 },
+      )
+    }
+
     const { amount, method, accountDetails } = await req.json()
 
     // Validate input
@@ -90,6 +116,9 @@ export async function POST(req: NextRequest) {
     if (availableBalance < amount) {
       return NextResponse.json({ message: "Insufficient available balance" }, { status: 400 })
     }
+
+    // Get user details for notification
+    const user = await User.findById(session.user.id).select("name email").lean()
 
     // Start a session for transaction
     const mongoSession = await mongoose.startSession()
@@ -135,8 +164,14 @@ export async function POST(req: NextRequest) {
         { session: mongoSession },
       )
 
+      // Update user's balance
+      await User.findByIdAndUpdate(session.user.id, { $inc: { pendingWithdrawals: amount } }, { session: mongoSession })
+
       await mongoSession.commitTransaction()
       mongoSession.endSession()
+
+      // Send notification to admin (in a real system, you'd use a notification service)
+      console.log(`New withdrawal request from ${user?.name} (${user?.email}) for ${amount}`)
 
       return NextResponse.json({
         message: "Withdrawal request submitted successfully",

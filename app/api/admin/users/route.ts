@@ -5,7 +5,7 @@ import dbConnect from "@/lib/mongodb"
 import User from "@/models/User"
 import { hash } from "bcryptjs"
 import crypto from "crypto"
-import { sendEmail } from "@/lib/mail"
+import { sendVerificationEmail } from "@/lib/mail"
 
 // GET /api/admin/users - Get all users with filtering
 export async function GET(req: NextRequest) {
@@ -99,24 +99,13 @@ export async function POST(req: NextRequest) {
     })
 
     // Send verification email
-    const verificationUrl = `${process.env.NEXTAUTH_URL}/verify-email?token=${verificationToken}`
-
-    await sendEmail({
-      to: email,
-      subject: "Verify your email address",
-      text: `Please verify your email address by clicking on the following link: ${verificationUrl}`,
-      html: `
-        <div>
-          <h1>Welcome to Sikshya Earn!</h1>
-          <p>Please verify your email address by clicking on the button below:</p>
-          <a href="${verificationUrl}" style="display: inline-block; background-color: #4F46E5; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
-            Verify Email
-          </a>
-          <p>If the button doesn't work, you can also click on this link: <a href="${verificationUrl}">${verificationUrl}</a></p>
-          <p>This link will expire in 24 hours.</p>
-        </div>
-      `,
-    })
+    try {
+      await sendVerificationEmail(email, verificationToken)
+      console.log(`Verification email sent to ${email}`)
+    } catch (emailError) {
+      console.error("Failed to send verification email:", emailError)
+      // Continue even if email fails - we don't want to block user creation
+    }
 
     return NextResponse.json(
       {

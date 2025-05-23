@@ -51,20 +51,16 @@ interface CourseData {
   status: string
   featured: boolean
   packages: string[]
-  modules: {
+  videoLessons: {
     title: string
     description: string
-    lessons: {
+    videoUrl: string
+    duration: string
+    resources: {
       title: string
-      description: string
-      videoUrl: string
-      duration: string
-      resources: {
-        title: string
-        type: string
-        url: string
-        size: string
-      }[]
+      type: string
+      url: string
+      size: string
     }[]
   }[]
 }
@@ -72,6 +68,17 @@ interface CourseData {
 interface Package {
   _id: string
   name: string
+}
+
+// Helper function to extract YouTube video ID
+function getYouTubeVideoId(url: string): string | null {
+  if (!url) return null
+
+  // Match YouTube URL patterns
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/
+  const match = url.match(regExp)
+
+  return match && match[2].length === 11 ? match[2] : null
 }
 
 export default function EditCoursePage({ params }: { params: { slug: string } }) {
@@ -103,19 +110,13 @@ export default function EditCoursePage({ params }: { params: { slug: string } })
     tags: [""],
   })
 
-  const [modules, setModules] = useState([
+  const [videoLessons, setVideoLessons] = useState([
     {
       title: "",
       description: "",
-      lessons: [
-        {
-          title: "",
-          description: "",
-          videoUrl: "",
-          duration: "",
-          resources: [{ title: "", type: "pdf", url: "", size: "" }],
-        },
-      ],
+      videoUrl: "",
+      duration: "",
+      resources: [{ title: "", type: "pdf", url: "", size: "" }],
     },
   ])
 
@@ -159,9 +160,9 @@ export default function EditCoursePage({ params }: { params: { slug: string } })
           tags: course.tags?.length ? course.tags : [""],
         })
 
-        // Set modules
-        if (course.modules && course.modules.length > 0) {
-          setModules(course.modules)
+        // Set video lessons
+        if (course.videoLessons && course.videoLessons.length > 0) {
+          setVideoLessons(course.videoLessons)
         }
 
         // Set selected packages
@@ -230,127 +231,69 @@ export default function EditCoursePage({ params }: { params: { slug: string } })
     setFormData((prev) => ({ ...prev, tags: newTags.length ? newTags : [""] }))
   }
 
-  const handleModuleChange = (index: number, field: string, value: string) => {
-    const newModules = [...modules]
-    newModules[index][field] = value
-    setModules(newModules)
+  const handleVideoLessonChange = (index: number, field: string, value: string) => {
+    const newLessons = [...videoLessons]
+    newLessons[index][field] = value
+    setVideoLessons(newLessons)
   }
 
-  const addModule = () => {
-    setModules([
-      ...modules,
+  const addVideoLesson = () => {
+    setVideoLessons([
+      ...videoLessons,
       {
         title: "",
         description: "",
-        lessons: [
-          {
-            title: "",
-            description: "",
-            videoUrl: "",
-            duration: "",
-            resources: [{ title: "", type: "pdf", url: "", size: "" }],
-          },
-        ],
+        videoUrl: "",
+        duration: "",
+        resources: [{ title: "", type: "pdf", url: "", size: "" }],
       },
     ])
   }
 
-  const removeModule = (index: number) => {
-    const newModules = modules.filter((_, i) => i !== index)
-    setModules(
-      newModules.length
-        ? newModules
+  const removeVideoLesson = (index: number) => {
+    const newLessons = videoLessons.filter((_, i) => i !== index)
+    setVideoLessons(
+      newLessons.length
+        ? newLessons
         : [
             {
               title: "",
               description: "",
-              lessons: [
-                {
-                  title: "",
-                  description: "",
-                  videoUrl: "",
-                  duration: "",
-                  resources: [{ title: "", type: "pdf", url: "", size: "" }],
-                },
-              ],
+              videoUrl: "",
+              duration: "",
+              resources: [{ title: "", type: "pdf", url: "", size: "" }],
             },
           ],
     )
   }
 
-  const handleLessonChange = (moduleIndex: number, lessonIndex: number, field: string, value: string) => {
-    const newModules = [...modules]
-    newModules[moduleIndex].lessons[lessonIndex][field] = value
-    setModules(newModules)
+  const handleResourceChange = (lessonIndex: number, resourceIndex: number, field: string, value: string) => {
+    const newLessons = [...videoLessons]
+    newLessons[lessonIndex].resources[resourceIndex][field] = value
+    setVideoLessons(newLessons)
   }
 
-  const addLesson = (moduleIndex: number) => {
-    const newModules = [...modules]
-    newModules[moduleIndex].lessons.push({
-      title: "",
-      description: "",
-      videoUrl: "",
-      duration: "",
-      resources: [{ title: "", type: "pdf", url: "", size: "" }],
-    })
-    setModules(newModules)
-  }
-
-  const removeLesson = (moduleIndex: number, lessonIndex: number) => {
-    const newModules = [...modules]
-    newModules[moduleIndex].lessons = newModules[moduleIndex].lessons.filter((_, i) => i !== lessonIndex)
-
-    // Ensure there's at least one lesson
-    if (newModules[moduleIndex].lessons.length === 0) {
-      newModules[moduleIndex].lessons = [
-        {
-          title: "",
-          description: "",
-          videoUrl: "",
-          duration: "",
-          resources: [{ title: "", type: "pdf", url: "", size: "" }],
-        },
-      ]
-    }
-
-    setModules(newModules)
-  }
-
-  const handleResourceChange = (
-    moduleIndex: number,
-    lessonIndex: number,
-    resourceIndex: number,
-    field: string,
-    value: string,
-  ) => {
-    const newModules = [...modules]
-    newModules[moduleIndex].lessons[lessonIndex].resources[resourceIndex][field] = value
-    setModules(newModules)
-  }
-
-  const addResource = (moduleIndex: number, lessonIndex: number) => {
-    const newModules = [...modules]
-    newModules[moduleIndex].lessons[lessonIndex].resources.push({
+  const addResource = (lessonIndex: number) => {
+    const newLessons = [...videoLessons]
+    newLessons[lessonIndex].resources.push({
       title: "",
       type: "pdf",
       url: "",
       size: "",
     })
-    setModules(newModules)
+    setVideoLessons(newLessons)
   }
 
-  const removeResource = (moduleIndex: number, lessonIndex: number, resourceIndex: number) => {
-    const newModules = [...modules]
-    newModules[moduleIndex].lessons[lessonIndex].resources = newModules[moduleIndex].lessons[
-      lessonIndex
-    ].resources.filter((_, i) => i !== resourceIndex)
+  const removeResource = (lessonIndex: number, resourceIndex: number) => {
+    const newLessons = [...videoLessons]
+    newLessons[lessonIndex].resources = newLessons[lessonIndex].resources.filter((_, i) => i !== resourceIndex)
 
     // Ensure there's at least one resource
-    if (newModules[moduleIndex].lessons[lessonIndex].resources.length === 0) {
-      newModules[moduleIndex].lessons[lessonIndex].resources = [{ title: "", type: "pdf", url: "", size: "" }]
+    if (newLessons[lessonIndex].resources.length === 0) {
+      newLessons[lessonIndex].resources = [{ title: "", type: "pdf", url: "", size: "" }]
     }
 
-    setModules(newModules)
+    setVideoLessons(newLessons)
   }
 
   const togglePackage = (packageId: string) => {
@@ -370,9 +313,9 @@ export default function EditCoursePage({ params }: { params: { slug: string } })
 
       const courseData = {
         ...formData,
-        price: Number.parseFloat(formData.price),
+        price: Number.parseFloat(formData.price) || 0,
         tags: filteredTags,
-        modules,
+        videoLessons,
         packages: selectedPackages,
       }
 
@@ -571,7 +514,6 @@ export default function EditCoursePage({ params }: { params: { slug: string } })
                       placeholder="e.g. 1499"
                       min="0"
                       step="0.01"
-                      required
                     />
                   </div>
 
@@ -715,279 +657,181 @@ export default function EditCoursePage({ params }: { params: { slug: string } })
           <TabsContent value="content" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Course Modules</CardTitle>
-                <CardDescription>Organize your course into modules and lessons</CardDescription>
+                <CardTitle>Course Video Lessons</CardTitle>
+                <CardDescription>Add video lessons and resources to your course</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {modules.map((module, moduleIndex) => (
-                  <div key={moduleIndex} className="space-y-4 border p-4 rounded-md">
+                {videoLessons.map((lesson, lessonIndex) => (
+                  <div key={lessonIndex} className="space-y-4 border p-4 rounded-md">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-medium">Module {moduleIndex + 1}</h3>
-                      <Button type="button" variant="outline" size="icon" onClick={() => removeModule(moduleIndex)}>
+                      <h3 className="text-lg font-medium">Lesson {lessonIndex + 1}</h3>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => removeVideoLesson(lessonIndex)}
+                      >
                         <Trash className="h-4 w-4" />
                       </Button>
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor={`module-${moduleIndex}-title`}>Module Title</Label>
+                      <Label htmlFor={`lesson-${lessonIndex}-title`}>Lesson Title</Label>
                       <Input
-                        id={`module-${moduleIndex}-title`}
-                        value={module.title}
-                        onChange={(e) => handleModuleChange(moduleIndex, "title", e.target.value)}
+                        id={`lesson-${lessonIndex}-title`}
+                        value={lesson.title}
+                        onChange={(e) => handleVideoLessonChange(lessonIndex, "title", e.target.value)}
                         placeholder="e.g. Introduction to Digital Marketing"
                         required
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor={`module-${moduleIndex}-description`}>Module Description</Label>
+                      <Label htmlFor={`lesson-${lessonIndex}-description`}>Lesson Description</Label>
                       <Textarea
-                        id={`module-${moduleIndex}-description`}
-                        value={module.description}
-                        onChange={(e) => handleModuleChange(moduleIndex, "description", e.target.value)}
-                        placeholder="Brief description of this module"
+                        id={`lesson-${lessonIndex}-description`}
+                        value={lesson.description}
+                        onChange={(e) => handleVideoLessonChange(lessonIndex, "description", e.target.value)}
+                        placeholder="Brief description of this lesson"
                         rows={2}
                         required
                       />
                     </div>
 
                     <div className="space-y-2">
+                      <Label htmlFor={`lesson-${lessonIndex}-videoUrl`}>Video URL (YouTube)</Label>
+                      <Input
+                        id={`lesson-${lessonIndex}-videoUrl`}
+                        value={lesson.videoUrl}
+                        onChange={(e) => handleVideoLessonChange(lessonIndex, "videoUrl", e.target.value)}
+                        placeholder="e.g. https://www.youtube.com/watch?v=example"
+                      />
+                      {lesson.videoUrl && (
+                        <div className="mt-2 p-2 bg-muted rounded-md">
+                          <p className="text-xs text-muted-foreground mb-1">Preview:</p>
+                          <div className="aspect-video bg-black/5 rounded-md flex items-center justify-center">
+                            {getYouTubeVideoId(lesson.videoUrl) ? (
+                              <iframe
+                                className="w-full h-full rounded-md"
+                                src={`https://www.youtube.com/embed/${getYouTubeVideoId(lesson.videoUrl)}`}
+                                title={lesson.title}
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                              ></iframe>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">Enter a valid YouTube URL to see preview</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor={`lesson-${lessonIndex}-duration`}>Duration</Label>
+                      <Input
+                        id={`lesson-${lessonIndex}-duration`}
+                        value={lesson.duration}
+                        onChange={(e) => handleVideoLessonChange(lessonIndex, "duration", e.target.value)}
+                        placeholder="e.g. 15 min"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label>Lessons</Label>
-                        <Button type="button" variant="outline" size="sm" onClick={() => addLesson(moduleIndex)}>
+                        <Label>Resources</Label>
+                        <Button type="button" variant="outline" size="sm" onClick={() => addResource(lessonIndex)}>
                           <Plus className="mr-2 h-3 w-3" />
-                          Add Lesson
+                          Add Resource
                         </Button>
                       </div>
 
-                      <div className="space-y-4">
-                        {module.lessons.map((lesson, lessonIndex) => (
-                          <div key={lessonIndex} className="border p-3 rounded-md space-y-3">
+                      <div className="space-y-2">
+                        {lesson.resources.map((resource, resourceIndex) => (
+                          <div key={resourceIndex} className="border p-2 rounded-md space-y-2">
                             <div className="flex items-center justify-between">
-                              <h4 className="font-medium">Lesson {lessonIndex + 1}</h4>
+                              <h5 className="text-sm font-medium">Resource {resourceIndex + 1}</h5>
                               <Button
                                 type="button"
                                 variant="outline"
                                 size="icon"
-                                onClick={() => removeLesson(moduleIndex, lessonIndex)}
+                                className="h-7 w-7"
+                                onClick={() => removeResource(lessonIndex, resourceIndex)}
                               >
-                                <Trash className="h-4 w-4" />
+                                <Trash className="h-3 w-3" />
                               </Button>
                             </div>
 
-                            <div className="space-y-2">
-                              <Label htmlFor={`lesson-${moduleIndex}-${lessonIndex}-title`}>Lesson Title</Label>
-                              <Input
-                                id={`lesson-${moduleIndex}-${lessonIndex}-title`}
-                                value={lesson.title}
-                                onChange={(e) => handleLessonChange(moduleIndex, lessonIndex, "title", e.target.value)}
-                                placeholder="e.g. What is Digital Marketing?"
-                                required
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor={`lesson-${moduleIndex}-${lessonIndex}-description`}>
-                                Lesson Description
-                              </Label>
-                              <Textarea
-                                id={`lesson-${moduleIndex}-${lessonIndex}-description`}
-                                value={lesson.description}
-                                onChange={(e) =>
-                                  handleLessonChange(moduleIndex, lessonIndex, "description", e.target.value)
-                                }
-                                placeholder="Brief description of this lesson"
-                                rows={2}
-                                required
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor={`lesson-${moduleIndex}-${lessonIndex}-videoUrl`}>
-                                Video URL (YouTube)
-                              </Label>
-                              <Input
-                                id={`lesson-${moduleIndex}-${lessonIndex}-videoUrl`}
-                                value={lesson.videoUrl}
-                                onChange={(e) =>
-                                  handleLessonChange(moduleIndex, lessonIndex, "videoUrl", e.target.value)
-                                }
-                                placeholder="e.g. https://www.youtube.com/watch?v=example"
-                                required
-                              />
-                              {lesson.videoUrl && (
-                                <div className="mt-2 p-2 bg-muted rounded-md">
-                                  <p className="text-xs text-muted-foreground mb-1">Preview:</p>
-                                  <div className="aspect-video bg-black/5 rounded-md flex items-center justify-center">
-                                    {lesson.videoUrl.includes("youtube.com") || lesson.videoUrl.includes("youtu.be") ? (
-                                      <iframe
-                                        className="w-full h-full rounded-md"
-                                        src={`https://www.youtube.com/embed/${
-                                          lesson.videoUrl.includes("v=")
-                                            ? lesson.videoUrl.split("v=")[1].split("&")[0]
-                                            : lesson.videoUrl.split("/").pop()
-                                        }`}
-                                        title={lesson.title}
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                        allowFullScreen
-                                      ></iframe>
-                                    ) : (
-                                      <p className="text-sm text-muted-foreground">
-                                        Enter a valid YouTube URL to see preview
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor={`lesson-${moduleIndex}-${lessonIndex}-duration`}>Duration</Label>
-                              <Input
-                                id={`lesson-${moduleIndex}-${lessonIndex}-duration`}
-                                value={lesson.duration}
-                                onChange={(e) =>
-                                  handleLessonChange(moduleIndex, lessonIndex, "duration", e.target.value)
-                                }
-                                placeholder="e.g. 15 min"
-                                required
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <Label>Resources</Label>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => addResource(moduleIndex, lessonIndex)}
-                                >
-                                  <Plus className="mr-2 h-3 w-3" />
-                                  Add Resource
-                                </Button>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <Label htmlFor={`resource-${lessonIndex}-${resourceIndex}-title`} className="text-xs">
+                                  Title
+                                </Label>
+                                <Input
+                                  id={`resource-${lessonIndex}-${resourceIndex}-title`}
+                                  value={resource.title}
+                                  onChange={(e) =>
+                                    handleResourceChange(lessonIndex, resourceIndex, "title", e.target.value)
+                                  }
+                                  placeholder="e.g. Lesson Slides"
+                                  className="h-8"
+                                  required
+                                />
                               </div>
 
-                              <div className="space-y-2">
-                                {lesson.resources.map((resource, resourceIndex) => (
-                                  <div key={resourceIndex} className="border p-2 rounded-md space-y-2">
-                                    <div className="flex items-center justify-between">
-                                      <h5 className="text-sm font-medium">Resource {resourceIndex + 1}</h5>
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="icon"
-                                        className="h-7 w-7"
-                                        onClick={() => removeResource(moduleIndex, lessonIndex, resourceIndex)}
-                                      >
-                                        <Trash className="h-3 w-3" />
-                                      </Button>
-                                    </div>
+                              <div className="space-y-1">
+                                <Label htmlFor={`resource-${lessonIndex}-${resourceIndex}-type`} className="text-xs">
+                                  Type
+                                </Label>
+                                <Select
+                                  value={resource.type}
+                                  onValueChange={(value) =>
+                                    handleResourceChange(lessonIndex, resourceIndex, "type", value)
+                                  }
+                                >
+                                  <SelectTrigger className="h-8">
+                                    <SelectValue placeholder="Select type" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="pdf">PDF</SelectItem>
+                                    <SelectItem value="doc">Document</SelectItem>
+                                    <SelectItem value="ppt">Presentation</SelectItem>
+                                    <SelectItem value="zip">ZIP Archive</SelectItem>
+                                    <SelectItem value="link">External Link</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                      <div className="space-y-1">
-                                        <Label
-                                          htmlFor={`resource-${moduleIndex}-${lessonIndex}-${resourceIndex}-title`}
-                                          className="text-xs"
-                                        >
-                                          Title
-                                        </Label>
-                                        <Input
-                                          id={`resource-${moduleIndex}-${lessonIndex}-${resourceIndex}-title`}
-                                          value={resource.title}
-                                          onChange={(e) =>
-                                            handleResourceChange(
-                                              moduleIndex,
-                                              lessonIndex,
-                                              resourceIndex,
-                                              "title",
-                                              e.target.value,
-                                            )
-                                          }
-                                          placeholder="e.g. Lesson Slides"
-                                          className="h-8"
-                                          required
-                                        />
-                                      </div>
+                              <div className="space-y-1">
+                                <Label htmlFor={`resource-${lessonIndex}-${resourceIndex}-url`} className="text-xs">
+                                  URL
+                                </Label>
+                                <Input
+                                  id={`resource-${lessonIndex}-${resourceIndex}-url`}
+                                  value={resource.url}
+                                  onChange={(e) =>
+                                    handleResourceChange(lessonIndex, resourceIndex, "url", e.target.value)
+                                  }
+                                  placeholder="e.g. /resources/slides.pdf"
+                                  className="h-8"
+                                  required
+                                />
+                              </div>
 
-                                      <div className="space-y-1">
-                                        <Label
-                                          htmlFor={`resource-${moduleIndex}-${lessonIndex}-${resourceIndex}-type`}
-                                          className="text-xs"
-                                        >
-                                          Type
-                                        </Label>
-                                        <Select
-                                          value={resource.type}
-                                          onValueChange={(value) =>
-                                            handleResourceChange(moduleIndex, lessonIndex, resourceIndex, "type", value)
-                                          }
-                                        >
-                                          <SelectTrigger className="h-8">
-                                            <SelectValue placeholder="Select type" />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="pdf">PDF</SelectItem>
-                                            <SelectItem value="doc">Document</SelectItem>
-                                            <SelectItem value="ppt">Presentation</SelectItem>
-                                            <SelectItem value="zip">ZIP Archive</SelectItem>
-                                            <SelectItem value="link">External Link</SelectItem>
-                                          </SelectContent>
-                                        </Select>
-                                      </div>
-
-                                      <div className="space-y-1">
-                                        <Label
-                                          htmlFor={`resource-${moduleIndex}-${lessonIndex}-${resourceIndex}-url`}
-                                          className="text-xs"
-                                        >
-                                          URL
-                                        </Label>
-                                        <Input
-                                          id={`resource-${moduleIndex}-${lessonIndex}-${resourceIndex}-url`}
-                                          value={resource.url}
-                                          onChange={(e) =>
-                                            handleResourceChange(
-                                              moduleIndex,
-                                              lessonIndex,
-                                              resourceIndex,
-                                              "url",
-                                              e.target.value,
-                                            )
-                                          }
-                                          placeholder="e.g. /resources/slides.pdf"
-                                          className="h-8"
-                                          required
-                                        />
-                                      </div>
-
-                                      <div className="space-y-1">
-                                        <Label
-                                          htmlFor={`resource-${moduleIndex}-${lessonIndex}-${resourceIndex}-size`}
-                                          className="text-xs"
-                                        >
-                                          Size
-                                        </Label>
-                                        <Input
-                                          id={`resource-${moduleIndex}-${lessonIndex}-${resourceIndex}-size`}
-                                          value={resource.size}
-                                          onChange={(e) =>
-                                            handleResourceChange(
-                                              moduleIndex,
-                                              lessonIndex,
-                                              resourceIndex,
-                                              "size",
-                                              e.target.value,
-                                            )
-                                          }
-                                          placeholder="e.g. 2.4 MB"
-                                          className="h-8"
-                                          required
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
+                              <div className="space-y-1">
+                                <Label htmlFor={`resource-${lessonIndex}-${resourceIndex}-size`} className="text-xs">
+                                  Size
+                                </Label>
+                                <Input
+                                  id={`resource-${lessonIndex}-${resourceIndex}-size`}
+                                  value={resource.size}
+                                  onChange={(e) =>
+                                    handleResourceChange(lessonIndex, resourceIndex, "size", e.target.value)
+                                  }
+                                  placeholder="e.g. 2.4 MB"
+                                  className="h-8"
+                                  required
+                                />
                               </div>
                             </div>
                           </div>
@@ -997,9 +841,9 @@ export default function EditCoursePage({ params }: { params: { slug: string } })
                   </div>
                 ))}
 
-                <Button type="button" variant="outline" onClick={addModule} className="w-full">
+                <Button type="button" variant="outline" onClick={addVideoLesson} className="w-full">
                   <Plus className="mr-2 h-4 w-4" />
-                  Add Module
+                  Add Lesson
                 </Button>
               </CardContent>
             </Card>

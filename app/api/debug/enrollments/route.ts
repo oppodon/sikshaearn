@@ -1,91 +1,75 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import { connectToDatabase } from "@/lib/mongodb"
-import Enrollment from "@/models/Enrollment"
-import Transaction from "@/models/Transaction"
-import Package from "@/models/Package"
-import Course from "@/models/Course"
+import mongoose from "mongoose"
 
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
 
-    if (!session?.user?.id) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    const userId = session.user.id
     await connectToDatabase()
 
-    // Get user transactions
-    const transactions = await Transaction.find({ user: session.user.id }).lean()
-    const completedTransactions = transactions.filter((t) => t.status === "completed")
-    const approvedTransactions = transactions.filter((t) => t.status === "approved")
+    // Import models directly to ensure they're registered
+    require("@/models/Package")
+    require("@/models/Course")
+    require("@/models/Enrollment")
+    require("@/models/Transaction")
 
-    // Get user enrollments
-    const enrollments = await Enrollment.find({ user: session.user.id }).lean()
+    // Get transactions
+    const transactions = await mongoose
+      .model("Transaction")
+      .find({
+        user: userId,
+      })
+      .lean()
 
-    // Get packages from enrollments
-    const packageIds = enrollments.map((e) => e.package)
-    const packages = await Package.find({ _id: { $in: packageIds } }).lean()
+    // Get enrollments
+    const enrollments = await mongoose
+      .model("Enrollment")
+      .find({
+        user: userId,
+      })
+      .lean()
 
-    // Get all course IDs from packages
-    const allCourseIds = []
-    packages.forEach((pkg) => {
-      if (pkg.courses && pkg.courses.length > 0) {
-        allCourseIds.push(...pkg.courses)
+    // Get packages from transactions
+    const packageIds = transactions.filter((t) => t.package).map((t) => t.package)
+
+    const packages = await mongoose
+      .model("Package")
+      .find({
+        _id: { $in: packageIds },
+      })
+      .lean()
+
+    // Count courses in packages
+    let coursesCount = 0
+    for (const pkg of packages) {
+      if (pkg.courses && Array.isArray(pkg.courses)) {
+        coursesCount += pkg.courses.length
       }
-    })
-
-    // Get courses
-    const courses = await Course.find({ _id: { $in: allCourseIds } }).lean()
+    }
 
     return NextResponse.json({
-      userId: session.user.id,
-      transactions: {
-        total: transactions.length,
-        completed: completedTransactions.length,
-        approved: approvedTransactions.length,
-        pending: transactions.filter((t) => t.status === "pending").length,
-        rejected: transactions.filter((t) => t.status === "rejected").length,
-        details: transactions.map((t) => ({
-          id: t._id,
-          status: t.status,
-          amount: t.amount,
-          package: t.package,
-          createdAt: t.createdAt,
-        })),
-      },
-      enrollments: {
-        total: enrollments.length,
-        details: enrollments.map((e) => ({
-          id: e._id,
-          package: e.package,
-          isActive: e.isActive,
-          transaction: e.transaction,
-        })),
-      },
-      packages: {
-        total: packages.length,
-        details: packages.map((p) => ({
-          id: p._id,
-          title: p.title,
-          name: p.name,
-          coursesCount: p.courses?.length || 0,
-          courses: p.courses || [],
-        })),
-      },
-      courses: {
-        total: courses.length,
-        details: courses.map((c) => ({
-          id: c._id,
-          title: c.title,
-          slug: c.slug,
-        })),
-      },
+      userId,
+      transactions,
+      enrollments,
+      packages,
+      coursesCount,
     })
   } catch (error) {
-    console.error("Debug error:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error("Error in debug enrollments API:", error)
+    return NextResponse.json(
+      {
+        error: "Failed to fetch debug info",
+        details: error.message,
+      },
+      { status: 500 },
+    )
   }
 }

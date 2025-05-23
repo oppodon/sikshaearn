@@ -6,7 +6,14 @@ export interface ICourse extends Document {
   description: string
   thumbnail: string
   price: number
-  instructor: string
+  instructor:
+    | string
+    | {
+        name: string
+        title: string
+        bio: string
+        avatar?: string
+      }
   duration: string
   level: string
   language: string
@@ -14,7 +21,7 @@ export interface ICourse extends Document {
   tags: string[]
   requirements: string[]
   whatYouWillLearn: string[]
-  lessons: {
+  videoLessons: {
     title: string
     description: string
     videoUrl: string
@@ -59,11 +66,10 @@ const CourseSchema = new Schema(
     },
     price: {
       type: Number,
-      required: [true, "Course price is required"],
-      min: [0, "Price must be positive"],
+      default: 0, // Make price optional with default 0
     },
     instructor: {
-      type: String,
+      type: Schema.Types.Mixed, // Allow string or object
       required: [true, "Instructor name is required"],
     },
     duration: {
@@ -99,7 +105,7 @@ const CourseSchema = new Schema(
         type: String,
       },
     ],
-    lessons: [
+    videoLessons: [
       {
         title: {
           type: String,

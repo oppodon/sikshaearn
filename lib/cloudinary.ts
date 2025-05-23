@@ -39,3 +39,33 @@ export async function uploadImage(file: File, folder = "general") {
     throw error
   }
 }
+
+// Add the uploadToCloudinary function that's being imported in transactions
+export async function uploadToCloudinary(buffer: ArrayBuffer, path: string, mimeType: string) {
+  try {
+    // Convert ArrayBuffer to Buffer
+    const fileBuffer = Buffer.from(buffer)
+
+    // Convert buffer to base64
+    const base64 = fileBuffer.toString("base64")
+    const dataURI = `data:${mimeType};base64,${base64}`
+
+    // Upload to Cloudinary
+    const result = await cloudinary.uploader.upload(dataURI, {
+      folder: `knowledgehubnepal/${path.split("/")[0]}`,
+      resource_type: "auto",
+      public_id: path,
+      transformation: [{ width: 1280, height: 720, crop: "limit" }, { quality: "auto:good" }, { fetch_format: "auto" }],
+    })
+
+    return {
+      secure_url: result.secure_url,
+      public_id: result.public_id,
+      width: result.width,
+      height: result.height,
+    }
+  } catch (error) {
+    console.error("Cloudinary upload error:", error)
+    throw error
+  }
+}

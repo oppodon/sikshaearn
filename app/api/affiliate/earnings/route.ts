@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import dbConnect from "@/lib/mongodb"
 import AffiliateEarning from "@/models/AffiliateEarning"
+import { BalanceService } from "@/lib/balance-service"
 
 export async function GET(req: NextRequest) {
   try {
@@ -50,26 +51,16 @@ export async function GET(req: NextRequest) {
       })
       .lean()
 
-    // Calculate totals
-    const totalEarnings = await AffiliateEarning.aggregate([
-      { $match: { user: session.user.id } },
-      { $group: { _id: "$status", total: { $sum: "$amount" } } },
-    ])
+    // Get balance information from Balance model
+    const balance = await BalanceService.getOrCreateBalance(session.user.id)
 
     const earningsSummary = {
-      pending: 0,
-      available: 0,
-      withdrawn: 0,
-      processing: 0,
-      total: 0,
+      pending: balance.pendingBalance || 0,
+      available: balance.availableBalance || 0,
+      withdrawn: balance.withdrawnBalance || 0,
+      processing: balance.processingBalance || 0,
+      total: balance.totalEarnings || 0,
     }
-
-    totalEarnings.forEach((item) => {
-      if (item._id) {
-        earningsSummary[item._id] = item.total
-      }
-      earningsSummary.total += item.total
-    })
 
     // Format earnings for response
     const formattedEarnings = earnings.map((earning) => ({

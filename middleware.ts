@@ -6,52 +6,56 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Get the token
-  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET })
+  const token = await getToken({
+    req: request,
+    secret: process.env.NEXTAUTH_SECRET,
+  })
 
-  // Define public routes that don't require authentication
-  const publicRoutes = [
-    "/",
-    "/login",
-    "/register",
-    "/forgot-password",
-    "/reset-password",
-    "/verify-email",
-    "/courses",
-    "/course-packages",
-    "/about",
-    "/contact",
-  ]
+  // Check if user is authenticated
+  const isAuthenticated = !!token
 
-  // Check if the path starts with any of the public routes
-  const isPublicRoute = publicRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`))
+  // Define protected routes that require authentication
+  const protectedRoutes = ["/dashboard", "/admin", "/course", "/checkout", "/payment"]
 
-  // Check if the path is for API routes or static files
-  const isApiOrStaticRoute = pathname.startsWith("/api/") || pathname.startsWith("/_next/") || pathname.includes(".")
+  // Define admin-only routes
+  const adminRoutes = ["/admin"]
 
-  // If the route is not public or API/static and the user is not authenticated, redirect to login
-  if (!isPublicRoute && !isApiOrStaticRoute && !token) {
-    const url = new URL("/login", request.url)
-    url.searchParams.set("callbackUrl", encodeURI(request.url))
-    return NextResponse.redirect(url)
+  // Define auth routes (login, register, etc.)
+  const authRoutes = ["/login", "/register", "/forgot-password", "/reset-password"]
+
+  // Check if the current path is a protected route
+  const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route))
+
+  // Check if the current path is an admin route
+  const isAdminRoute = adminRoutes.some((route) => pathname.startsWith(route))
+
+  // Check if the current path is an auth route
+  const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route))
+
+  // Skip middleware for API and auth callback routes
+  if (pathname.startsWith("/api/auth")) {
+    return NextResponse.next()
   }
 
-  // If the user is authenticated and trying to access auth pages, redirect to dashboard
-  if (token && (pathname === "/login" || pathname === "/register")) {
+  // If the route is protected and the user is not authenticated, redirect to login
+  if (isProtectedRoute && !isAuthenticated) {
+    return NextResponse.redirect(new URL("/login", request.url))
+  }
+
+  // If the route is admin-only and the user is not an admin, redirect to dashboard
+  if (isAdminRoute && token?.role !== "admin") {
+    return NextResponse.redirect(new URL("/dashboard", request.url))
+  }
+
+  // If the user is authenticated and trying to access auth routes, redirect to dashboard
+  if (isAuthenticated && isAuthRoute) {
     return NextResponse.redirect(new URL("/dashboard", request.url))
   }
 
   return NextResponse.next()
 }
 
+// Update the matcher to exclude auth callback routes
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    "/((?!api|_next/static|_next/image|favicon.ico).*)",
-  ],
+  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico|public).*)"],
 }

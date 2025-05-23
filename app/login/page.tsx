@@ -1,9 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { signIn } from "next-auth/react"
+import { signIn, getSession, useSession } from "next-auth/react"
 import { z } from "zod"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -14,6 +14,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { FcGoogle } from "react-icons/fc"
 import { Eye, EyeOff, Loader2, Sparkles, ArrowLeft } from "lucide-react"
 import Image from "next/image"
+import { toast } from "sonner"
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -25,6 +26,7 @@ type LoginFormValues = z.infer<typeof loginSchema>
 export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { data: session, status } = useSession()
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard"
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -38,32 +40,121 @@ export default function LoginPage() {
     },
   })
 
+  // Check if user is already logged in
+  useEffect(() => {
+    console.log("🔍 Login page - Session status:", status, "Session:", session)
+
+    if (status === "authenticated" && session) {
+      console.log("✅ User already authenticated, redirecting to:", callbackUrl)
+      router.push(callbackUrl)
+      router.refresh()
+    }
+  }, [session, status, router, callbackUrl])
+
+  // Show loading while checking session
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Checking authentication...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't show login form if already authenticated
+  if (status === "authenticated") {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Redirecting to dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
+  const generateToken = async () => {
+    try {
+      const response = await fetch("/api/auth/token")
+      const data = await response.json()
+
+      if (data.success) {
+        localStorage.setItem("auth_token", data.token)
+        localStorage.setItem("user_data", JSON.stringify(data.user))
+        toast.success("Login successful! Token generated.")
+        console.log("🔑 Auth Token:", data.token)
+        return data.token
+      }
+    } catch (error) {
+      console.error("Token generation failed:", error)
+    }
+    return null
+  }
+
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true)
     setError(null)
 
     try {
+      console.log("🔐 Attempting credential login for:", data.email)
+
       const result = await signIn("credentials", {
         redirect: false,
         email: data.email,
         password: data.password,
       })
 
+      console.log("🔐 Credential login result:", result)
+
       if (result?.error) {
         setError(result.error)
         return
       }
 
-      router.push(callbackUrl)
+      if (result?.ok) {
+        // Wait a bit for session to be established
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+
+        // Check session
+        const session = await getSession()
+        console.log("📋 Session after credential login:", session)
+
+        if (session) {
+          await generateToken()
+          router.push(callbackUrl)
+          router.refresh()
+        } else {
+          setError("Session could not be established. Please try again.")
+        }
+      }
     } catch (error) {
+      console.error("❌ Login error:", error)
       setError("An unexpected error occurred. Please try again.")
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleGoogleSignIn = () => {
-    signIn("google", { callbackUrl })
+  const handleGoogleSignIn = async () => {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      console.log("🔐 Attempting Google login...")
+
+      await signIn("google", {
+        callbackUrl: "/dashboard",
+      })
+
+      // Note: We don't need to handle the redirect here as NextAuth will handle it
+      // The page will be redirected automatically
+    } catch (error) {
+      console.error("❌ Google sign-in error:", error)
+      setError("Google sign-in failed. Please try again.")
+      setIsLoading(false)
+    }
   }
 
   return (

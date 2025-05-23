@@ -7,7 +7,8 @@ import Course from "@/models/Course"
 export async function GET(req: NextRequest, { params }: { params: { slug: string } }) {
   try {
     await connectToDatabase()
-    const { slug } = params
+    // Await params in Next.js 15
+    const { slug } = await params
 
     const course = await Course.findOne({ slug }).lean()
 
@@ -31,13 +32,33 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
     }
 
     await connectToDatabase()
-    const { slug } = params
+    // Await params in Next.js 15
+    const { slug } = await params
     const data = await req.json()
+    console.log("Updating course with data:", data)
 
     const course = await Course.findOne({ slug })
 
     if (!course) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 })
+    }
+
+    // Process instructor data
+    if (data.instructor && typeof data.instructor === "object") {
+      if (!data.instructor.name) {
+        // If instructor is an object but name is empty, use a default string
+        data.instructor = "Instructor"
+      }
+    }
+
+    // Process video lessons
+    if (data.videoLessons) {
+      data.videoLessons.forEach((lesson: any) => {
+        // Ensure videoUrl is a string
+        if (!lesson.videoUrl) {
+          lesson.videoUrl = ""
+        }
+      })
     }
 
     // Update course fields
@@ -63,7 +84,8 @@ export async function DELETE(req: NextRequest, { params }: { params: { slug: str
     }
 
     await connectToDatabase()
-    const { slug } = params
+    // Await params in Next.js 15
+    const { slug } = await params
 
     const result = await Course.deleteOne({ slug })
 

@@ -3,7 +3,7 @@ import { connectToDatabase } from "@/lib/mongodb"
 import Transaction from "@/models/Transaction"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { uploadToCloudinary } from "@/lib/cloudinary"
+import { uploadImage } from "@/lib/cloudinary"
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -36,25 +36,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
 
     // Upload payment proof to Cloudinary
-    const paymentProofResult = await uploadToCloudinary(
-      await paymentProofFile.arrayBuffer(),
-      `payments/${session.user.id}/${Date.now()}`,
-      paymentProofFile.type,
-    )
+    const paymentProofResult = await uploadImage(paymentProofFile, `payments/${session.user.id}/${Date.now()}`)
 
-    if (!paymentProofResult || !paymentProofResult.secure_url) {
+    if (!paymentProofResult || !paymentProofResult.url) {
       return NextResponse.json({ success: false, error: "Failed to upload payment proof" }, { status: 500 })
     }
 
     // Update the transaction with the payment proof
-    transaction.paymentProof = paymentProofResult.secure_url
+    transaction.paymentProof = paymentProofResult.url
     await transaction.save()
 
     return NextResponse.json(
       {
         success: true,
         message: "Payment proof uploaded successfully",
-        paymentProofUrl: paymentProofResult.secure_url,
+        paymentProofUrl: paymentProofResult.url,
       },
       { status: 200 },
     )

@@ -1,9 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { signIn } from "next-auth/react"
+import { signIn, getSession } from "next-auth/react"
 import { z } from "zod"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -15,6 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { FcGoogle } from "react-icons/fc"
 import { Eye, EyeOff, Loader2, Sparkles, ArrowLeft, CheckCircle } from "lucide-react"
 import Image from "next/image"
+import { toast } from "sonner"
 
 const registerSchema = z
   .object({
@@ -58,6 +59,39 @@ export default function RegisterPage() {
     },
   })
 
+  // Check if user is already logged in
+  useEffect(() => {
+    const checkSession = async () => {
+      const session = await getSession()
+      if (session) {
+        router.push("/dashboard")
+      }
+    }
+    checkSession()
+  }, [router])
+
+  const generateToken = async () => {
+    try {
+      const response = await fetch("/api/auth/token")
+      const data = await response.json()
+
+      if (data.success) {
+        // Store token in localStorage
+        localStorage.setItem("auth_token", data.token)
+        localStorage.setItem("user_data", JSON.stringify(data.user))
+
+        toast.success("Registration successful! Token generated.")
+        console.log("🔑 Auth Token:", data.token)
+        console.log("👤 User Data:", data.user)
+
+        return data.token
+      }
+    } catch (error) {
+      console.error("Token generation failed:", error)
+    }
+    return null
+  }
+
   const onSubmit = async (data: RegisterFormValues) => {
     setIsLoading(true)
     setError(null)
@@ -84,9 +118,21 @@ export default function RegisterPage() {
 
       setSuccess("Registration successful! Please check your email to verify your account.")
 
-      setTimeout(() => {
-        router.push("/verify-email?email=" + encodeURIComponent(data.email))
-      }, 3000)
+      // Auto-login after registration
+      setTimeout(async () => {
+        const loginResult = await signIn("credentials", {
+          redirect: false,
+          email: data.email,
+          password: data.password,
+        })
+
+        if (loginResult?.ok) {
+          await generateToken()
+          router.push("/dashboard")
+        } else {
+          router.push("/verify-email?email=" + encodeURIComponent(data.email))
+        }
+      }, 2000)
     } catch (error: any) {
       setError(error.message || "An unexpected error occurred")
     } finally {
@@ -94,8 +140,28 @@ export default function RegisterPage() {
     }
   }
 
-  const handleGoogleSignIn = () => {
-    signIn("google", { callbackUrl: "/dashboard" })
+  const handleGoogleSignIn = async () => {
+    setIsLoading(true)
+    try {
+      const result = await signIn("google", {
+        redirect: false,
+        callbackUrl: "/dashboard",
+      })
+
+      if (result?.ok) {
+        // Generate token after successful Google registration
+        setTimeout(async () => {
+          await generateToken()
+          router.push("/dashboard")
+          router.refresh()
+        }, 1500)
+      }
+    } catch (error) {
+      console.error("Google sign-in error:", error)
+      setError("Google sign-in failed. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const benefits = [

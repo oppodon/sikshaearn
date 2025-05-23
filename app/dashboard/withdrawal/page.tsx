@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/components/ui/use-toast"
-import { AlertCircle, ArrowLeft, CheckCircle } from "lucide-react"
+import { AlertCircle, ArrowLeft, CheckCircle, AlertTriangle, FileText } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 
@@ -36,6 +36,11 @@ interface EarningsSummary {
   total: number
 }
 
+interface KYCStatus {
+  status: "pending" | "approved" | "rejected" | null
+  rejectionReason?: string
+}
+
 export default function WithdrawalPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -57,6 +62,7 @@ export default function WithdrawalPage() {
     processing: 0,
     total: 0,
   })
+  const [kycStatus, setKycStatus] = useState<KYCStatus>({ status: null })
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -70,6 +76,7 @@ export default function WithdrawalPage() {
 
     if (status === "authenticated") {
       fetchEarningsData()
+      fetchKYCStatus()
     }
   }, [status, router])
 
@@ -93,6 +100,34 @@ export default function WithdrawalPage() {
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchKYCStatus = async () => {
+    try {
+      const response = await fetch("/api/kyc")
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch KYC status")
+      }
+
+      const data = await response.json()
+
+      if (data.kyc) {
+        setKycStatus({
+          status: data.kyc.status,
+          rejectionReason: data.kyc.rejectionReason,
+        })
+      } else {
+        setKycStatus({ status: null })
+      }
+    } catch (error) {
+      console.error("Error fetching KYC status:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load KYC status. Please try again.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -177,6 +212,18 @@ export default function WithdrawalPage() {
       const data = await response.json()
 
       if (!response.ok) {
+        if (response.status === 403 && data.kycRequired) {
+          // KYC verification required
+          if (data.kycStatus === "pending") {
+            setError("Your KYC verification is pending. Please wait for approval before making a withdrawal.")
+          } else if (data.kycStatus === "rejected") {
+            setError("Your KYC verification was rejected. Please submit a new KYC verification.")
+          } else {
+            setError("KYC verification is required for withdrawals. Please complete your KYC verification.")
+          }
+          return
+        }
+
         throw new Error(data.message || "Failed to submit withdrawal request")
       }
 
@@ -204,6 +251,54 @@ export default function WithdrawalPage() {
       currency: "INR",
       maximumFractionDigits: 0,
     }).format(amount)
+  }
+
+  const renderKYCAlert = () => {
+    if (kycStatus.status === null) {
+      return (
+        <Alert variant="destructive" className="mb-6">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>KYC Verification Required</AlertTitle>
+          <AlertDescription>
+            You need to complete KYC verification before you can withdraw funds.
+            <div className="mt-2">
+              <Button variant="outline" size="sm" onClick={() => router.push("/dashboard/kyc")}>
+                <FileText className="mr-2 h-4 w-4" />
+                Complete KYC Verification
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )
+    } else if (kycStatus.status === "pending") {
+      return (
+        <Alert variant="warning" className="mb-6 border-amber-200 bg-amber-50 text-amber-800">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>KYC Verification Pending</AlertTitle>
+          <AlertDescription>
+            Your KYC verification is currently under review. You'll be able to withdraw funds once it's approved.
+          </AlertDescription>
+        </Alert>
+      )
+    } else if (kycStatus.status === "rejected") {
+      return (
+        <Alert variant="destructive" className="mb-6">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>KYC Verification Rejected</AlertTitle>
+          <AlertDescription>
+            Your KYC verification was rejected. Reason: {kycStatus.rejectionReason || "Not specified"}
+            <div className="mt-2">
+              <Button variant="outline" size="sm" onClick={() => router.push("/dashboard/kyc")}>
+                <FileText className="mr-2 h-4 w-4" />
+                Submit New KYC Verification
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )
+    }
+
+    return null
   }
 
   if (status === "loading" || loading) {
@@ -275,6 +370,8 @@ export default function WithdrawalPage() {
           </Button>
           <h1 className="text-2xl font-bold">Withdraw Funds</h1>
         </div>
+
+        {renderKYCAlert()}
 
         <div className="grid gap-6">
           <Card>
@@ -435,7 +532,10 @@ export default function WithdrawalPage() {
                 <Button variant="outline" type="button" onClick={() => router.back()}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={submitting || earningsSummary.available < 100}>
+                <Button
+                  type="submit"
+                  disabled={submitting || earningsSummary.available < 100 || kycStatus.status !== "approved"}
+                >
                   {submitting ? "Processing..." : "Submit Withdrawal Request"}
                 </Button>
               </CardFooter>
