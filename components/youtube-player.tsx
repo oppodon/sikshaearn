@@ -94,8 +94,9 @@ const YouTubePlayer = ({
       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
       allowFullScreen
       className="rounded-lg"
-    ></iframe>
+    />
   )
 }
 
 export default YouTubePlayer
+export { YouTubePlayer as YoutubePlayer }

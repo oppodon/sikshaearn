@@ -1,160 +1,100 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { useSession } from "next-auth/react"
 import Link from "next/link"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
-import { connectToDatabase } from "@/lib/mongodb"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Calendar, Clock, PackageIcon, User, Play } from "lucide-react"
-import mongoose from "mongoose"
+import { Calendar, Clock, PackageIcon, User, Play, RefreshCw, Loader2 } from "lucide-react"
 
-// Loading component
-function CoursesSkeleton() {
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {[1, 2, 3, 4, 5, 6].map((i) => (
-        <Card key={i} className="overflow-hidden">
-          <div className="relative h-48 w-full">
-            <Skeleton className="h-full w-full" />
-          </div>
-          <CardHeader className="pb-2">
-            <Skeleton className="h-6 w-3/4 mb-1" />
-            <Skeleton className="h-4 w-1/2" />
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-4 w-full mb-2" />
-            <Skeleton className="h-4 w-3/4" />
-          </CardContent>
-          <CardFooter className="flex justify-between">
-            <Skeleton className="h-9 w-24" />
-            <Skeleton className="h-5 w-16" />
-          </CardFooter>
-        </Card>
-      ))}
-    </div>
-  )
+interface Course {
+  _id: string
+  title: string
+  slug: string
+  description: string
+  thumbnail: string
+  instructor: string
+  level: string
+  duration: string
+  videoLessons: any[]
+  packageTitle: string
+  packageId: string
+  enrollmentId: string
+  progress: number
+  completedLessons: string[]
+  enrolledAt: string
+  lastAccessed: string
+  status: "not-started" | "in-progress" | "completed"
 }
 
-// Fetch user enrollments and courses
-async function fetchCourses(userId: string) {
-  console.log("Fetching courses for user:", userId)
-
-  try {
-    await connectToDatabase()
-
-    // Import models directly to ensure they're registered
-    require("@/models/Package")
-    require("@/models/Course")
-    require("@/models/Enrollment")
-    require("@/models/Transaction")
-
-    // Get all transactions for the user
-    const transactions = await mongoose
-      .model("Transaction")
-      .find({
-        user: userId,
-        status: "approved",
-      })
-      .lean()
-
-    console.log(`Found ${transactions.length} approved transactions`)
-
-    if (!transactions.length) {
-      return { courses: [], enrollments: [], transactions: [] }
-    }
-
-    // Get all enrollments for the user
-    const enrollments = await mongoose
-      .model("Enrollment")
-      .find({
-        user: userId,
-        isActive: true,
-      })
-      .lean()
-
-    console.log(`Found ${enrollments.length} active enrollments`)
-
-    // Get all package IDs from transactions
-    const packageIds = transactions.map((t) => t.package)
-
-    // Get all packages with their courses
-    const packages = await mongoose
-      .model("Package")
-      .find({
-        _id: { $in: packageIds },
-      })
-      .populate("courses")
-      .lean()
-
-    console.log(`Found ${packages.length} packages with courses`)
-
-    // Extract all courses from all packages
-    const allCourses = []
-
-    for (const pkg of packages) {
-      console.log(`Package ${pkg.title || pkg.name} has ${pkg.courses?.length || 0} courses`)
-
-      if (!pkg.courses || !Array.isArray(pkg.courses) || pkg.courses.length === 0) {
-        console.log(`No courses found in package ${pkg._id}`)
-        continue
-      }
-
-      // Find enrollment for this package
-      const enrollment = enrollments.find((e) => e.package && e.package.toString() === pkg._id.toString())
-
-      for (const course of pkg.courses) {
-        if (!course) continue
-
-        // Calculate progress if there's an enrollment
-        let progress = 0
-        let completedLessons = []
-
-        if (enrollment) {
-          completedLessons = enrollment.completedLessons || []
-          const totalLessons = course.videoLessons?.length || 10
-          progress =
-            totalLessons > 0
-              ? Math.round(
-                  (completedLessons.filter((l) => l.course && l.course.toString() === course._id.toString()).length /
-                    totalLessons) *
-                    100,
-                )
-              : 0
-        }
-
-        allCourses.push({
-          ...course,
-          packageTitle: pkg.title || pkg.name,
-          packageId: pkg._id,
-          enrollmentId: enrollment?._id,
-          progress: progress,
-          completedLessons: completedLessons,
-          enrolledAt: enrollment?.startDate || enrollment?.createdAt,
-          lastAccessed: enrollment?.lastAccessed,
-          status: progress === 100 ? "completed" : progress > 0 ? "in-progress" : "not-started",
-        })
-      }
-    }
-
-    console.log(`Returning ${allCourses.length} courses`)
-    return {
-      courses: allCourses,
-      enrollments,
-      transactions,
-    }
-  } catch (error) {
-    console.error("Error fetching courses:", error)
-    throw new Error(`Failed to fetch courses: ${error.message}`)
+interface CourseData {
+  courses: Course[]
+  enrollments: any[]
+  transactions: any[]
+  stats: {
+    totalPackages: number
+    totalCourses: number
+    inProgressCourses: number
+    completedCourses: number
   }
 }
 
-export default async function MyCoursesPage() {
-  const session = await getServerSession(authOptions)
+export default function MyCoursesPage() {
+  const { data: session, status } = useSession()
+  const [courseData, setCourseData] = useState<CourseData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  if (!session) {
+  const fetchCourses = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const response = await fetch("/api/user/courses")
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to fetch courses")
+      }
+
+      if (data.success) {
+        setCourseData(data)
+      } else {
+        throw new Error(data.message || "Failed to fetch courses")
+      }
+    } catch (err) {
+      console.error("Error fetching courses:", err)
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      fetchCourses()
+    } else if (status === "unauthenticated") {
+      setLoading(false)
+    }
+  }, [status])
+
+  if (status === "loading" || loading) {
+    return (
+      <div className="container max-w-7xl mx-auto py-12 px-4">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground">Loading your courses...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (status === "unauthenticated") {
     return (
       <div className="container max-w-7xl mx-auto py-12 px-4">
         <Card>
@@ -172,170 +112,213 @@ export default async function MyCoursesPage() {
     )
   }
 
-  try {
-    const { courses, enrollments, transactions } = await fetchCourses(session.user.id)
-
-    // Calculate stats
-    const totalPackages = new Set(enrollments.map((e) => e.package?.toString())).size
-    const totalCourses = courses.length
-    const inProgressCourses = courses.filter((c) => c.status === "in-progress").length
-    const completedCourses = courses.filter((c) => c.status === "completed").length
-
-    return (
-      <div className="container max-w-7xl mx-auto py-12 px-4">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">My Courses</h1>
-          <p className="text-muted-foreground">Access your enrolled courses and track your progress</p>
-        </div>
-
-        {/* Debug Info */}
-        <Card className="mb-6 bg-slate-50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Enrollment Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm space-y-1">
-              <p>
-                <strong>User ID:</strong> {session.user.id}
-              </p>
-              <p>
-                <strong>Transactions:</strong> {transactions.length} approved transactions
-              </p>
-              <p>
-                <strong>Enrollments:</strong> {enrollments.length} active enrollments
-              </p>
-              <p>
-                <strong>Packages:</strong> {totalPackages} packages
-              </p>
-              <p>
-                <strong>Courses:</strong> {totalCourses} courses available
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Packages</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{totalPackages}</p>
-              <p className="text-sm text-muted-foreground">Enrolled packages</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Courses</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{totalCourses}</p>
-              <p className="text-sm text-muted-foreground">Available courses</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">In Progress</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{inProgressCourses}</p>
-              <p className="text-sm text-muted-foreground">Courses started</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Completed</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{completedCourses}</p>
-              <p className="text-sm text-muted-foreground">Courses finished</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {courses.length === 0 ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>No Courses Found</CardTitle>
-              <CardDescription>
-                {transactions.length > 0
-                  ? "You have approved transactions but no courses are enrolled. Please contact support."
-                  : "You haven't enrolled in any courses yet."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild>
-                <Link href="/packages">Browse Packages</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            {/* Tabs for filtering */}
-            <Tabs defaultValue="all" className="w-full mb-6">
-              <TabsList>
-                <TabsTrigger value="all">All Courses ({courses.length})</TabsTrigger>
-                <TabsTrigger value="not-started">
-                  Not Started ({courses.filter((c) => c.status === "not-started").length})
-                </TabsTrigger>
-                <TabsTrigger value="in-progress">
-                  In Progress ({courses.filter((c) => c.status === "in-progress").length})
-                </TabsTrigger>
-                <TabsTrigger value="completed">
-                  Completed ({courses.filter((c) => c.status === "completed").length})
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="all" className="mt-6">
-                <CourseGrid courses={courses} />
-              </TabsContent>
-
-              <TabsContent value="not-started" className="mt-6">
-                <CourseGrid courses={courses.filter((c) => c.status === "not-started")} />
-              </TabsContent>
-
-              <TabsContent value="in-progress" className="mt-6">
-                <CourseGrid courses={courses.filter((c) => c.status === "in-progress")} />
-              </TabsContent>
-
-              <TabsContent value="completed" className="mt-6">
-                <CourseGrid courses={courses.filter((c) => c.status === "completed")} />
-              </TabsContent>
-            </Tabs>
-          </>
-        )}
-      </div>
-    )
-  } catch (error) {
-    console.error("Error in MyCoursesPage:", error)
+  if (error) {
     return (
       <div className="container max-w-7xl mx-auto py-12 px-4">
         <Card className="border-red-200 bg-red-50">
           <CardHeader>
             <CardTitle className="text-red-700">Error Loading Courses</CardTitle>
             <CardDescription className="text-red-600">
-              {error.message || "There was an error loading your courses. Please try again."}
+              There was an error loading your courses. Please try refreshing the page.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="bg-white p-4 rounded-md mb-4 overflow-auto max-h-40">
-              <pre className="text-xs">{error.stack}</pre>
+            <div className="space-y-4">
+              <div className="bg-white p-4 rounded-md">
+                <p className="text-sm font-medium">Error Details:</p>
+                <p className="text-xs text-gray-600">{error}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button asChild>
+                  <Link href="/dashboard">Return to Dashboard</Link>
+                </Button>
+                <Button variant="outline" onClick={fetchCourses}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Try Again
+                </Button>
+              </div>
             </div>
-            <Button asChild>
-              <Link href="/dashboard">Return to Dashboard</Link>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (!courseData) {
+    return (
+      <div className="container max-w-7xl mx-auto py-12 px-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>No Data Available</CardTitle>
+            <CardDescription>Unable to load course data.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={fetchCourses}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Retry
             </Button>
           </CardContent>
         </Card>
       </div>
     )
   }
+
+  const { courses, enrollments, transactions, stats } = courseData
+
+  return (
+    <div className="container max-w-7xl mx-auto py-12 px-4">
+      <div className="mb-8 flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">My Courses</h1>
+          <p className="text-muted-foreground">Access your enrolled courses and track your progress</p>
+        </div>
+        <Button variant="outline" onClick={fetchCourses} disabled={loading}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
+      </div>
+
+      {/* Debug Info */}
+      <Card className="mb-6 bg-slate-50">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg">Enrollment Status</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <strong>User ID:</strong>
+              <br />
+              {session?.user?.id}
+            </div>
+            <div>
+              <strong>Completed Transactions:</strong>
+              <br />
+              {transactions.length}
+            </div>
+            <div>
+              <strong>Active Enrollments:</strong>
+              <br />
+              {enrollments.length}
+            </div>
+            <div>
+              <strong>Available Courses:</strong>
+              <br />
+              {stats.totalCourses}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Packages</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">{stats.totalPackages}</p>
+            <p className="text-sm text-muted-foreground">Enrolled packages</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Courses</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">{stats.totalCourses}</p>
+            <p className="text-sm text-muted-foreground">Available courses</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">In Progress</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">{stats.inProgressCourses}</p>
+            <p className="text-sm text-muted-foreground">Courses started</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Completed</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">{stats.completedCourses}</p>
+            <p className="text-sm text-muted-foreground">Courses finished</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {courses.length === 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>No Courses Found</CardTitle>
+            <CardDescription>
+              {transactions.length > 0
+                ? "You have completed transactions but no courses are enrolled. This might be a sync issue - please refresh the page or contact support."
+                : "You haven't enrolled in any courses yet."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="text-sm text-muted-foreground">
+              <p>Debug Information:</p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>Completed Transactions: {transactions.length}</li>
+                <li>Active Enrollments: {enrollments.length}</li>
+                <li>Available Courses: {courses.length}</li>
+              </ul>
+            </div>
+            <div className="flex gap-2">
+              <Button asChild>
+                <Link href="/packages">Browse Packages</Link>
+              </Button>
+              <Button variant="outline" onClick={fetchCourses}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh Data
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Tabs defaultValue="all" className="w-full">
+          <TabsList>
+            <TabsTrigger value="all">All Courses ({courses.length})</TabsTrigger>
+            <TabsTrigger value="not-started">
+              Not Started ({courses.filter((c) => c.status === "not-started").length})
+            </TabsTrigger>
+            <TabsTrigger value="in-progress">
+              In Progress ({courses.filter((c) => c.status === "in-progress").length})
+            </TabsTrigger>
+            <TabsTrigger value="completed">
+              Completed ({courses.filter((c) => c.status === "completed").length})
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="all" className="mt-6">
+            <CourseGrid courses={courses} />
+          </TabsContent>
+
+          <TabsContent value="not-started" className="mt-6">
+            <CourseGrid courses={courses.filter((c) => c.status === "not-started")} />
+          </TabsContent>
+
+          <TabsContent value="in-progress" className="mt-6">
+            <CourseGrid courses={courses.filter((c) => c.status === "in-progress")} />
+          </TabsContent>
+
+          <TabsContent value="completed" className="mt-6">
+            <CourseGrid courses={courses.filter((c) => c.status === "completed")} />
+          </TabsContent>
+        </Tabs>
+      )}
+    </div>
+  )
 }
 
-function CourseGrid({ courses }) {
+function CourseGrid({ courses }: { courses: Course[] }) {
   if (courses.length === 0) {
     return (
       <Card>

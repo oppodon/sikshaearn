@@ -1,10 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
-import User from "@/models/User"
+import { ensureModelsRegistered, User, Transaction } from "@/lib/models"
 
 export async function GET(req: NextRequest) {
   try {
     await dbConnect()
+    ensureModelsRegistered()
+
     console.log("Connected to MongoDB for referrals leaderboard")
 
     const searchParams = req.nextUrl.searchParams
@@ -12,34 +14,49 @@ export async function GET(req: NextRequest) {
 
     console.log(`Fetching referrals leaderboard with limit: ${limit}`)
 
-    // Find users with referrals and sort by count
-    const users = await User.aggregate([
-      { $match: { referredUsers: { $exists: true, $ne: [] } } },
+    // Get referral counts from transactions
+    const referralStats = await Transaction.aggregate([
       {
-        $project: {
-          name: 1,
-          email: 1,
-          username: 1,
-          image: 1,
-          referralCount: { $size: { $ifNull: ["$referredUsers", []] } },
+        $match: {
+          status: "completed",
+          affiliateId: { $exists: true, $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: "$affiliateId",
+          referralCount: { $sum: 1 },
+          totalSales: { $sum: "$amount" },
+          totalCommission: { $sum: "$affiliateCommission" },
         },
       },
       { $sort: { referralCount: -1 } },
       { $limit: limit },
     ])
 
-    console.log(`Found ${users.length} users with referrals`)
+    console.log(`Found ${referralStats.length} users with referral transactions`)
+
+    // Get user details
+    const userIds = referralStats.map((stat) => stat._id)
+    const users = await User.find({ _id: { $in: userIds } })
+      .select("name email username image")
+      .lean()
 
     // Format leaderboard data
-    const leaderboard = users.map((user, index) => ({
-      rank: index + 1,
-      id: user._id,
-      name: user.name || "Anonymous",
-      username: user.username || "user",
-      image: user.image,
-      email: user.email,
-      referrals: user.referralCount,
-    }))
+    const leaderboard = referralStats.map((stat, index) => {
+      const user = users.find((u) => u._id.toString() === stat._id.toString())
+      return {
+        rank: index + 1,
+        id: stat._id,
+        name: user?.name || "Anonymous",
+        username: user?.username || "user",
+        image: user?.image,
+        email: user?.email,
+        referrals: stat.referralCount,
+        totalSales: stat.totalSales,
+        totalCommission: stat.totalCommission,
+      }
+    })
 
     console.log("Returning referrals leaderboard with entries:", leaderboard.length)
     return NextResponse.json({

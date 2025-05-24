@@ -12,7 +12,6 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/components/ui/use-toast"
-import { uploadToCloudinary } from "@/lib/cloudinary"
 import { ArrowLeft, Upload, X, QrCode } from "lucide-react"
 import Link from "next/link"
 
@@ -72,16 +71,26 @@ export default function CreatePaymentMethodPage() {
     try {
       setIsSubmitting(true)
 
-      // Upload QR code to Cloudinary
+      // Upload QR code using API route instead of direct Cloudinary
       setIsUploading(true)
-      const uploadResult = await uploadToCloudinary(
-        await qrCodeFile.arrayBuffer(),
-        `payment-methods/${Date.now()}-${qrCodeFile.name.replace(/\s+/g, "-")}`,
-        qrCodeFile.type,
-      )
+
+      const formData = new FormData()
+      formData.append("file", qrCodeFile)
+      formData.append("folder", "payment-methods")
+
+      const uploadResponse = await fetch("/api/upload/image", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!uploadResponse.ok) {
+        throw new Error("Failed to upload QR code")
+      }
+
+      const uploadResult = await uploadResponse.json()
       setIsUploading(false)
 
-      if (!uploadResult || !uploadResult.secure_url) {
+      if (!uploadResult || !uploadResult.url) {
         throw new Error("Failed to upload QR code")
       }
 
@@ -93,7 +102,7 @@ export default function CreatePaymentMethodPage() {
         },
         body: JSON.stringify({
           name,
-          qrCodeUrl: uploadResult.secure_url,
+          qrCodeUrl: uploadResult.url,
           instructions,
           isActive,
         }),

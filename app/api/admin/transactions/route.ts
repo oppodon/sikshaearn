@@ -2,86 +2,77 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { connectToDatabase } from "@/lib/mongodb"
-import Transaction from "@/models/Transaction"
-import User from "@/models/User"
-import Package from "@/models/Package"
+import { ensureModelsRegistered, Transaction } from "@/lib/models"
 
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
 
-    // Check if user is authenticated and is an admin
-    if (!session?.user || session.user.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    if (!session || session.user.role !== "admin") {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
     }
 
     await connectToDatabase()
 
-    // Parse query parameters
-    const searchParams = req.nextUrl.searchParams
-    const status = searchParams.get("status") || ""
-    const search = searchParams.get("search") || ""
-    const page = Number.parseInt(searchParams.get("page") || "1")
-    const limit = Number.parseInt(searchParams.get("limit") || "20")
-    const skip = (page - 1) * limit
+    // Ensure all models are registered
+    ensureModelsRegistered()
 
-    // Build query
+    const { searchParams } = new URL(req.url)
+    const status = searchParams.get("status")
+
     const query: any = {}
-
-    if (status) {
-      query.status = status
+    if (status && status !== "all" && status !== "") {
+      if (status === "pending") {
+        query.status = { $in: ["pending", "pending_verification"] }
+      } else {
+        query.status = status
+      }
     }
 
-    if (search) {
-      // Add search functionality
-      query.$or = [{ reference: { $regex: search, $options: "i" } }, { _id: { $regex: search, $options: "i" } }]
-    }
+    console.log("Fetching transactions with query:", query)
 
-    // Find transactions
-    const transactions = await Transaction.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean()
+    const transactions = await Transaction.find(query)
+      .populate("user", "name email")
+      .populate("package", "title")
+      .sort({ createdAt: -1 })
+      .lean()
 
-    // Get user and package details for each transaction
-    const enhancedTransactions = await Promise.all(
-      transactions.map(async (transaction) => {
-        try {
-          // Get user details
-          const user = await User.findById(transaction.user).select("name email").lean()
+    console.log(`Found ${transactions.length} transactions`)
 
-          // Get package details
-          const packageData = await Package.findById(transaction.package).select("name title").lean()
-
-          return {
-            ...transaction,
-            userName: user?.name || "Unknown User",
-            userEmail: user?.email || "No Email",
-            packageName: packageData?.title || packageData?.name || "Unknown Package",
-          }
-        } catch (error) {
-          console.error("Error enhancing transaction:", error)
-          return {
-            ...transaction,
-            userName: "Error fetching user",
-            userEmail: "Error fetching email",
-            packageName: "Error fetching package",
-          }
-        }
-      }),
-    )
-
-    // Count total transactions for pagination
-    const total = await Transaction.countDocuments(query)
+    // Transform data for frontend
+    const transformedTransactions = transactions.map((transaction) => ({
+      _id: transaction._id,
+      userId: transaction.user?._id,
+      userName: transaction.user?.name || "Unknown User",
+      userEmail: transaction.user?.email || "No Email",
+      packageName: transaction.package?.title || "Unknown Package",
+      amount: transaction.amount,
+      status: transaction.status,
+      paymentMethodId: transaction.paymentMethodId,
+      paymentProof: transaction.paymentProof,
+      createdAt: transaction.createdAt,
+      completedAt: transaction.completedAt,
+      reference: transaction._id.toString().slice(-8),
+      method: "Online Payment",
+      affiliateId: transaction.affiliateId,
+      affiliateCommission: transaction.affiliateCommission,
+      tier2AffiliateId: transaction.tier2AffiliateId,
+      tier2Commission: transaction.tier2Commission,
+    }))
 
     return NextResponse.json({
-      transactions: enhancedTransactions,
-      pagination: {
-        total,
-        page,
-        limit,
-        pages: Math.ceil(total / limit),
-      },
+      success: true,
+      transactions: transformedTransactions,
     })
   } catch (error) {
-    console.error("Error fetching transactions:", error)
-    return NextResponse.json({ error: "Failed to fetch transactions" }, { status: 500 })
+    console.error("Error fetching admin transactions:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to fetch transactions",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
+    )
   }
 }

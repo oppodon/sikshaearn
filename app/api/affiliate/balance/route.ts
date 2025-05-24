@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
-import dbConnect from "@/lib/mongodb"
-import Balance from "@/models/Balance"
-import BalanceTransaction from "@/models/BalanceTransaction"
+import { connectToDatabase } from "@/lib/mongodb"
+import { ensureModelsRegistered, Balance, BalanceTransaction } from "@/lib/models"
 
 export async function GET() {
   try {
@@ -13,42 +12,67 @@ export async function GET() {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
     }
 
-    await dbConnect()
-    console.log("Connected to MongoDB for balance check")
+    await connectToDatabase()
+    ensureModelsRegistered()
 
-    // Get user ID from session
+    console.log("🔍 Fetching balance for user:", session.user.id)
+
     const userId = session.user.id
-    console.log(`Fetching balance for user: ${userId}`)
 
-    // Get balance
-    const balance = await Balance.findOne({ user: userId })
-    console.log("User balance:", balance)
+    // Get balance with proper null handling
+    let balance = await Balance.findOne({ user: userId })
 
     if (!balance) {
-      return NextResponse.json({
+      // Create balance if it doesn't exist
+      balance = await Balance.create({
+        user: userId,
         available: 0,
         pending: 0,
         processing: 0,
         withdrawn: 0,
-        total: 0,
+        lastSyncedAt: new Date(),
       })
+      console.log("✅ Created new balance for user:", userId)
+    }
+
+    // Ensure all values are numbers, not null/undefined
+    const safeBalance = {
+      available: Number(balance.available) || 0,
+      pending: Number(balance.pending) || 0,
+      processing: Number(balance.processing) || 0,
+      withdrawn: Number(balance.withdrawn) || 0,
     }
 
     // Get recent transactions
     const recentTransactions = await BalanceTransaction.find({ user: userId }).sort({ createdAt: -1 }).limit(5).lean()
 
-    console.log(`Found ${recentTransactions.length} recent transactions`)
+    console.log("💰 Safe balance values:", safeBalance)
 
-    return NextResponse.json({
-      available: balance.available || 0,
-      pending: balance.pending || 0,
-      processing: balance.processing || 0,
-      withdrawn: balance.withdrawn || 0,
-      total: (balance.available || 0) + (balance.pending || 0) + (balance.processing || 0) + (balance.withdrawn || 0),
-      recentTransactions,
-    })
+    const response = {
+      available: safeBalance.available,
+      pending: safeBalance.pending,
+      processing: safeBalance.processing,
+      withdrawn: safeBalance.withdrawn,
+      total: safeBalance.available + safeBalance.pending + safeBalance.processing + safeBalance.withdrawn,
+      recentTransactions: recentTransactions || [],
+    }
+
+    console.log("📤 Returning balance response:", response)
+
+    return NextResponse.json(response)
   } catch (error) {
-    console.error("Error fetching balance:", error)
-    return NextResponse.json({ message: "Failed to fetch balance", error: String(error) }, { status: 500 })
+    console.error("❌ Error fetching balance:", error)
+    return NextResponse.json(
+      {
+        available: 0,
+        pending: 0,
+        processing: 0,
+        withdrawn: 0,
+        total: 0,
+        recentTransactions: [],
+        error: String(error),
+      },
+      { status: 500 },
+    )
   }
 }

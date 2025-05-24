@@ -2,10 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import dbConnect from "@/lib/mongodb"
-import Withdrawal from "@/models/Withdrawal"
-import AffiliateEarning from "@/models/AffiliateEarning"
-import User from "@/models/User"
-import KYC from "@/models/KYC"
+import { ensureModelsRegistered, Withdrawal, Balance, BalanceTransaction, User, KYC } from "@/lib/models"
 import mongoose from "mongoose"
 
 export async function GET(req: NextRequest) {
@@ -17,6 +14,7 @@ export async function GET(req: NextRequest) {
     }
 
     await dbConnect()
+    ensureModelsRegistered()
 
     const searchParams = req.nextUrl.searchParams
     const page = Number.parseInt(searchParams.get("page") || "1")
@@ -57,6 +55,9 @@ export async function POST(req: NextRequest) {
     }
 
     await dbConnect()
+    ensureModelsRegistered()
+
+    console.log(`💸 Processing withdrawal request for user: ${session.user.id}`)
 
     // Check if user has completed KYC verification
     const kycStatus = await KYC.findOne({ userId: session.user.id }).lean()
@@ -104,17 +105,23 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Check if user has enough available balance
-    const availableEarnings = await AffiliateEarning.find({
-      user: session.user.id,
-      status: "available",
-      withdrawalId: null,
-    })
+    // Get user's current balance
+    const userBalance = await Balance.findOne({ user: session.user.id })
 
-    const availableBalance = availableEarnings.reduce((sum, earning) => sum + earning.amount, 0)
+    if (!userBalance) {
+      return NextResponse.json({ message: "No balance found. Please contact support." }, { status: 400 })
+    }
+
+    const availableBalance = Number(userBalance.available) || 0
+    console.log(`💰 User available balance: ₹${availableBalance}, Requested: ₹${amount}`)
 
     if (availableBalance < amount) {
-      return NextResponse.json({ message: "Insufficient available balance" }, { status: 400 })
+      return NextResponse.json(
+        {
+          message: `Insufficient available balance. Available: ₹${availableBalance}, Requested: ₹${amount}`,
+        },
+        { status: 400 },
+      )
     }
 
     // Get user details for notification
@@ -132,46 +139,48 @@ export async function POST(req: NextRequest) {
         method,
         accountDetails,
         status: "pending",
-        earnings: [],
       })
 
       await withdrawal.save({ session: mongoSession })
 
-      // Collect earnings for this withdrawal
-      let remainingAmount = amount
-      const earningsToUpdate = []
-
-      for (const earning of availableEarnings) {
-        if (remainingAmount <= 0) break
-
-        earningsToUpdate.push(earning._id)
-        withdrawal.earnings.push(earning._id)
-
-        remainingAmount -= earning.amount
-        if (remainingAmount < 0) {
-          // This should never happen as we're only including whole earnings
-          // But just in case, we'll handle it
-          console.warn("Negative remaining amount in withdrawal processing:", remainingAmount)
-        }
-      }
-
-      await withdrawal.save({ session: mongoSession })
-
-      // Update earnings status to "withdrawn"
-      await AffiliateEarning.updateMany(
-        { _id: { $in: earningsToUpdate } },
-        { status: "withdrawn", withdrawalId: withdrawal._id },
+      // Update user balance - move from available to processing
+      await Balance.findOneAndUpdate(
+        { user: session.user.id },
+        {
+          $inc: {
+            available: -amount,
+            processing: amount,
+          },
+          $set: {
+            lastSyncedAt: new Date(),
+          },
+        },
         { session: mongoSession },
       )
 
-      // Update user's balance
-      await User.findByIdAndUpdate(session.user.id, { $inc: { pendingWithdrawals: amount } }, { session: mongoSession })
+      // Create balance transaction record
+      await BalanceTransaction.create(
+        [
+          {
+            user: session.user.id,
+            type: "debit",
+            amount,
+            description: `Withdrawal request - ${method}`,
+            status: "pending",
+            metadata: {
+              withdrawalId: withdrawal._id,
+              method,
+              accountDetails,
+            },
+          },
+        ],
+        { session: mongoSession },
+      )
 
       await mongoSession.commitTransaction()
       mongoSession.endSession()
 
-      // Send notification to admin (in a real system, you'd use a notification service)
-      console.log(`New withdrawal request from ${user?.name} (${user?.email}) for ${amount}`)
+      console.log(`✅ Withdrawal request created: ${withdrawal._id} for ₹${amount}`)
 
       return NextResponse.json({
         message: "Withdrawal request submitted successfully",
@@ -189,7 +198,7 @@ export async function POST(req: NextRequest) {
       throw error
     }
   } catch (error) {
-    console.error("Error creating withdrawal request:", error)
+    console.error("❌ Error creating withdrawal request:", error)
     return NextResponse.json({ message: "Failed to create withdrawal request" }, { status: 500 })
   }
 }

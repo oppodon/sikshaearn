@@ -23,6 +23,8 @@ interface LeaderboardEntry {
   tier2Earnings?: number
   transactionCount?: number
   referrals?: number
+  totalSales?: number
+  totalCommission?: number
 }
 
 export default function LeaderboardPage() {
@@ -243,15 +245,17 @@ export default function LeaderboardPage() {
                 <Users className="h-5 w-5 text-primary" />
                 Most Referrals
               </CardTitle>
-              <CardDescription>Affiliates who have referred the most users</CardDescription>
+              <CardDescription>Affiliates who have referred the most successful purchases</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="rounded-md border">
                 <div className="grid grid-cols-12 gap-4 p-4 font-medium bg-muted/50">
                   <div className="col-span-1">Rank</div>
                   <div className="col-span-3">Affiliate</div>
-                  <div className="col-span-3">Username</div>
-                  <div className="col-span-5">Total Referrals</div>
+                  <div className="col-span-2">Username</div>
+                  <div className="col-span-2">Referrals</div>
+                  <div className="col-span-2">Total Sales</div>
+                  <div className="col-span-2">Commission</div>
                 </div>
 
                 {loading ? (
@@ -289,23 +293,10 @@ export default function LeaderboardPage() {
                         </Avatar>
                         <span className="font-medium truncate">{affiliate.name}</span>
                       </div>
-                      <div className="col-span-3 text-muted-foreground">@{affiliate.username}</div>
-                      <div className="col-span-5">
-                        <div className="flex items-center gap-2">
-                          <div className="h-2 bg-primary/20 rounded-full w-full max-w-xs">
-                            <div
-                              className="h-full bg-primary rounded-full"
-                              style={{
-                                width: `${Math.min(
-                                  100,
-                                  (affiliate.referrals! / (referralsLeaderboard[0]?.referrals || 1)) * 100,
-                                )}%`,
-                              }}
-                            />
-                          </div>
-                          <span className="font-semibold">{affiliate.referrals}</span>
-                        </div>
-                      </div>
+                      <div className="col-span-2 text-muted-foreground">@{affiliate.username}</div>
+                      <div className="col-span-2 font-semibold">{affiliate.referrals || 0}</div>
+                      <div className="col-span-2">{formatCurrency(affiliate.totalSales || 0)}</div>
+                      <div className="col-span-2 font-semibold">{formatCurrency(affiliate.totalCommission || 0)}</div>
                     </div>
                   ))
                 )}

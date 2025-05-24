@@ -3,23 +3,41 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import Image from "next/image"
-import { Home, BookOpen, Share2, CreditCard, BarChart2, User } from "lucide-react"
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
-  SidebarRail,
-} from "@/components/ui/sidebar"
+import { Home, BookOpen, Share2, CreditCard, User, Menu } from 'lucide-react'
+import { useState, createContext, useContext } from "react"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+
+// Create sidebar context
+interface SidebarContextType {
+  isOpen: boolean
+  setIsOpen: (open: boolean) => void
+}
+
+const SidebarContext = createContext<SidebarContextType | undefined>(undefined)
+
+export function useSidebar() {
+  const context = useContext(SidebarContext)
+  if (!context) {
+    throw new Error("useSidebar must be used within SidebarProvider")
+  }
+  return context
+}
+
+export function SidebarProvider({ children }: { children: React.ReactNode }) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  return (
+    <SidebarContext.Provider value={{ isOpen, setIsOpen }}>
+      {children}
+    </SidebarContext.Provider>
+  )
+}
 
 export function DashboardSidebar() {
   const pathname = usePathname()
+  const { isOpen, setIsOpen } = useSidebar()
 
   const menuItems = [
     {
@@ -97,22 +115,10 @@ export function DashboardSidebar() {
           href: "/dashboard/withdrawal",
           isActive: pathname === "/dashboard/withdrawal",
         },
-      ],
-    },
-    {
-      title: "Analytics",
-      icon: BarChart2,
-      isActive: pathname.includes("/dashboard/traffic") || pathname.includes("/dashboard/conversions"),
-      submenu: [
         {
-          title: "Traffic",
-          href: "/dashboard/traffic",
-          isActive: pathname === "/dashboard/traffic",
-        },
-        {
-          title: "Conversions",
-          href: "/dashboard/conversions",
-          isActive: pathname === "/dashboard/conversions",
+          title: "Purchase Request",
+          href: "/dashboard/transactions",
+          isActive: pathname === "/dashboard/transactions",
         },
       ],
     },
@@ -131,29 +137,16 @@ export function DashboardSidebar() {
           href: "/dashboard/kyc",
           isActive: pathname === "/dashboard/kyc",
         },
-        {
-          title: "Plan",
-          href: "/dashboard/plan",
-          isActive: pathname === "/dashboard/plan",
-        },
-        {
-          title: "Qualification",
-          href: "/dashboard/qualification",
-          isActive: pathname === "/dashboard/qualification",
-        },
-        {
-          title: "Social Media Handles",
-          href: "/dashboard/social-media",
-          isActive: pathname === "/dashboard/social-media",
-        },
+       
       ],
     },
   ]
 
-  return (
-    <Sidebar>
-      <SidebarHeader className="border-b p-4">
-        <Link href="/" className="flex items-center gap-2">
+  const SidebarContent = () => (
+    <div className="flex h-full flex-col">
+      {/* Logo */}
+      <div className="border-b p-4">
+        <Link href="/" className="flex items-center gap-2" onClick={() => setIsOpen(false)}>
           <div className="relative h-8 w-8">
             <Image
               src="/placeholder.svg?height=32&width=32"
@@ -164,45 +157,88 @@ export function DashboardSidebar() {
           </div>
           <span className="font-medium text-blue-600">Knowledge Hub Nepal</span>
         </Link>
-      </SidebarHeader>
-      <SidebarContent>
-        <SidebarMenu>
+      </div>
+
+      {/* Navigation */}
+      <div className="flex-1 overflow-auto p-4">
+        <nav className="space-y-2">
           {menuItems.map((item) => (
-            <SidebarMenuItem key={item.title}>
+            <div key={item.title}>
               {!item.submenu ? (
-                <SidebarMenuButton asChild isActive={item.isActive} tooltip={item.title}>
-                  <Link href={item.href}>
-                    <item.icon className="h-5 w-5" />
-                    <span>{item.title}</span>
-                  </Link>
-                </SidebarMenuButton>
+                <Link
+                  href={item.href}
+                  onClick={() => setIsOpen(false)}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    item.isActive
+                      ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                      : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                  )}
+                >
+                  <item.icon className="h-5 w-5" />
+                  {item.title}
+                </Link>
               ) : (
-                <>
-                  <SidebarMenuButton isActive={item.isActive} tooltip={item.title}>
+                <div className="space-y-1">
+                  <div
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium",
+                      item.isActive
+                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                        : "text-gray-700 dark:text-gray-300"
+                    )}
+                  >
                     <item.icon className="h-5 w-5" />
-                    <span>{item.title}</span>
-                  </SidebarMenuButton>
-                  <SidebarMenuSub>
+                    {item.title}
+                  </div>
+                  <div className="ml-8 space-y-1">
                     {item.submenu.map((subItem) => (
-                      <SidebarMenuSubItem key={subItem.title}>
-                        <SidebarMenuSubButton asChild isActive={subItem.isActive}>
-                          <Link href={subItem.href}>{subItem.title}</Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
+                      <Link
+                        key={subItem.title}
+                        href={subItem.href}
+                        onClick={() => setIsOpen(false)}
+                        className={cn(
+                          "block rounded-lg px-3 py-2 text-sm transition-colors",
+                          subItem.isActive
+                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                            : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+                        )}
+                      >
+                        {subItem.title}
+                      </Link>
                     ))}
-                  </SidebarMenuSub>
-                </>
+                  </div>
+                </div>
               )}
-            </SidebarMenuItem>
+            </div>
           ))}
-        </SidebarMenu>
-      </SidebarContent>
-      <SidebarFooter className="border-t p-4">
-        <div className="text-sm text-muted-foreground">
+        </nav>
+      </div>
+
+      {/* Footer */}
+      <div className="border-t p-4">
+        <div className="text-sm text-gray-500 dark:text-gray-400">
           <span>© 2024 Knowledge Hub Nepal</span>
         </div>
-      </SidebarFooter>
-      <SidebarRail />
-    </Sidebar>
+      </div>
+    </div>
+  )
+
+  return (
+    <>
+      {/* Mobile Sidebar */}
+      <Sheet open={isOpen} onOpenChange={setIsOpen}>
+        <SheetContent side="left" className="w-80 p-0">
+          <SidebarContent />
+        </SheetContent>
+      </Sheet>
+
+      {/* Desktop Sidebar */}
+      <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
+        <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+          <SidebarContent />
+        </div>
+      </div>
+    </>
   )
 }

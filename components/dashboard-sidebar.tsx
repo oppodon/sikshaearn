@@ -1,283 +1,257 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import Image from "next/image"
+import { Home, BookOpen, Share2, CreditCard, User, Menu } from 'lucide-react'
+import { useState, createContext, useContext } from "react"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
-import {
-  Home,
-  BookOpen,
-  Share2,
-  CreditCard,
-  BarChart2,
-  User,
-  ChevronDown,
-  Award,
-  LinkIcon,
-  Users,
-  Trophy,
-  Megaphone,
-  Wallet,
-  FileText,
-  TrendingUp,
-  BarChart,
-  FileCheck,
-  Settings,
-} from "lucide-react"
-import { useSidebar } from "@/components/ui/sidebar"
 
-interface NavItem {
-  title: string
-  href?: string
-  icon: React.ComponentType<{ className?: string }>
-  submenu?: {
-    title: string
-    href: string
-    icon: React.ComponentType<{ className?: string }>
-  }[]
+// Create sidebar context
+interface SidebarContextType {
+  isOpen: boolean
+  setIsOpen: (open: boolean) => void
+}
+
+const SidebarContext = createContext<SidebarContextType | undefined>(undefined)
+
+export function useSidebar() {
+  const context = useContext(SidebarContext)
+  if (!context) {
+    throw new Error("useSidebar must be used within SidebarProvider")
+  }
+  return context
+}
+
+export function SidebarProvider({ children }: { children: React.ReactNode }) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  return (
+    <SidebarContext.Provider value={{ isOpen, setIsOpen }}>
+      {children}
+    </SidebarContext.Provider>
+  )
 }
 
 export function DashboardSidebar() {
   const pathname = usePathname()
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const { isOpen, setIsOpen } = useSidebar()
 
-  // Initialize open state based on active path
-  useEffect(() => {
-    const newOpenGroups: Record<string, boolean> = {}
-
-    navItems.forEach((item) => {
-      if (item.submenu) {
-        const isActive = item.submenu.some((subItem) => pathname === subItem.href)
-        if (isActive) {
-          newOpenGroups[item.title] = true
-        }
-      }
-    })
-
-    setOpenGroups(newOpenGroups)
-  }, [pathname])
-
-  const toggleGroup = (title: string) => {
-    setOpenGroups((prev) => ({
-      ...prev,
-      [title]: !prev[title],
-    }))
-  }
-
-  const navItems: NavItem[] = [
+  const menuItems = [
     {
       title: "Dashboard",
-      href: "/dashboard",
       icon: Home,
+      href: "/dashboard",
+      isActive: pathname === "/dashboard",
     },
     {
       title: "Learning",
       icon: BookOpen,
+      isActive: pathname.includes("/dashboard/my-courses") || pathname.includes("/dashboard/courses"),
       submenu: [
         {
           title: "My Courses",
           href: "/dashboard/my-courses",
-          icon: BookOpen,
+          isActive: pathname === "/dashboard/my-courses",
         },
         {
           title: "Course Player",
           href: "/dashboard/courses",
-          icon: BookOpen,
+          isActive: pathname.includes("/dashboard/courses/"),
         },
         {
           title: "Certificates",
           href: "/dashboard/certificates",
-          icon: Award,
+          isActive: pathname === "/dashboard/certificates",
         },
       ],
     },
     {
       title: "Affiliate",
       icon: Share2,
+      isActive: pathname.includes("/dashboard/affiliate"),
       submenu: [
         {
           title: "Affiliate Dashboard",
           href: "/dashboard/affiliate-dashboard",
-          icon: BarChart2,
+          isActive: pathname === "/dashboard/affiliate-dashboard",
         },
         {
           title: "Affiliate Link",
           href: "/dashboard/affiliate-link",
-          icon: LinkIcon,
+          isActive: pathname === "/dashboard/affiliate-link",
         },
         {
           title: "My Affiliates",
           href: "/dashboard/my-affiliates",
-          icon: Users,
+          isActive: pathname === "/dashboard/my-affiliates",
         },
         {
           title: "Leaderboard",
           href: "/dashboard/leaderboard",
-          icon: Trophy,
+          isActive: pathname === "/dashboard/leaderboard",
         },
         {
           title: "Marketing Material",
           href: "/dashboard/marketing-material",
-          icon: Megaphone,
+          isActive: pathname === "/dashboard/marketing-material",
         },
       ],
     },
     {
       title: "Finance",
       icon: CreditCard,
+      isActive: pathname.includes("/dashboard/payouts") || pathname.includes("/dashboard/withdrawal"),
       submenu: [
         {
           title: "Payouts",
           href: "/dashboard/payouts",
-          icon: Wallet,
+          isActive: pathname === "/dashboard/payouts",
         },
         {
           title: "Withdrawal Request",
           href: "/dashboard/withdrawal",
-          icon: FileText,
-        },
-      ],
-    },
-    {
-      title: "Analytics",
-      icon: BarChart2,
-      submenu: [
-        {
-          title: "Traffic",
-          href: "/dashboard/traffic",
-          icon: TrendingUp,
+          isActive: pathname === "/dashboard/withdrawal",
         },
         {
-          title: "Conversions",
-          href: "/dashboard/conversions",
-          icon: BarChart,
+          title: "Purchase Request",
+          href: "/dashboard/transactions",
+          isActive: pathname === "/dashboard/transactions",
         },
       ],
     },
     {
       title: "Account",
       icon: User,
+      isActive: pathname.includes("/dashboard/profile") || pathname.includes("/dashboard/kyc"),
       submenu: [
         {
           title: "Profile",
           href: "/dashboard/profile",
-          icon: User,
+          isActive: pathname === "/dashboard/profile",
         },
         {
           title: "KYC",
           href: "/dashboard/kyc",
-          icon: FileCheck,
+          isActive: pathname === "/dashboard/kyc",
         },
         {
-          title: "Settings",
-          href: "/dashboard/settings",
-          icon: Settings,
+          title: "Plan",
+          href: "/dashboard/plan",
+          isActive: pathname === "/dashboard/plan",
+        },
+        {
+          title: "Qualification",
+          href: "/dashboard/qualification",
+          isActive: pathname === "/dashboard/qualification",
+        },
+        {
+          title: "Social Media Handles",
+          href: "/dashboard/social-media",
+          isActive: pathname === "/dashboard/social-media",
         },
       ],
     },
   ]
 
-  const NavItems = () => (
-    <>
-      {navItems.map((item) => (
-        <div key={item.title} className="mb-1">
-          {!item.submenu ? (
-            <Link
-              href={item.href || "#"}
-              className={cn(
-                "flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-primary/10 hover:text-primary",
-                pathname === item.href ? "bg-primary/10 text-primary" : "text-gray-700 dark:text-gray-300",
-              )}
-            >
-              <item.icon className="mr-3 h-5 w-5" />
-              {item.title}
-            </Link>
-          ) : (
-            <>
-              <button
-                onClick={() => toggleGroup(item.title)}
-                className={cn(
-                  "flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-primary/10 hover:text-primary",
-                  item.submenu.some((subItem) => pathname === subItem.href)
-                    ? "text-primary"
-                    : "text-gray-700 dark:text-gray-300",
-                )}
-              >
-                <div className="flex items-center">
-                  <item.icon className="mr-3 h-5 w-5" />
+  const SidebarContent = () => (
+    <div className="flex h-full flex-col">
+      {/* Logo */}
+      <div className="border-b p-4">
+        <Link href="/" className="flex items-center gap-2" onClick={() => setIsOpen(false)}>
+          <div className="relative h-8 w-8">
+            <Image
+              src="/placeholder.svg?height=32&width=32"
+              alt="Knowledge Hub Nepal Logo"
+              fill
+              className="object-contain"
+            />
+          </div>
+          <span className="font-medium text-blue-600">Knowledge Hub Nepal</span>
+        </Link>
+      </div>
+
+      {/* Navigation */}
+      <div className="flex-1 overflow-auto p-4">
+        <nav className="space-y-2">
+          {menuItems.map((item) => (
+            <div key={item.title}>
+              {!item.submenu ? (
+                <Link
+                  href={item.href}
+                  onClick={() => setIsOpen(false)}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    item.isActive
+                      ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                      : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                  )}
+                >
+                  <item.icon className="h-5 w-5" />
                   {item.title}
-                </div>
-                <ChevronDown
-                  className={cn("h-4 w-4 transition-transform", openGroups[item.title] ? "rotate-180" : "")}
-                />
-              </button>
-              {openGroups[item.title] && (
-                <div className="mt-1 space-y-1 pl-10">
-                  {item.submenu.map((subItem) => (
-                    <Link
-                      key={subItem.title}
-                      href={subItem.href}
-                      className={cn(
-                        "flex items-center rounded-md px-3 py-2 text-sm transition-colors hover:bg-primary/10 hover:text-primary",
-                        pathname === subItem.href ? "bg-primary/10 text-primary" : "text-gray-600 dark:text-gray-400",
-                      )}
-                    >
-                      <subItem.icon className="mr-3 h-4 w-4" />
-                      {subItem.title}
-                    </Link>
-                  ))}
+                </Link>
+              ) : (
+                <div className="space-y-1">
+                  <div
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium",
+                      item.isActive
+                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                        : "text-gray-700 dark:text-gray-300"
+                    )}
+                  >
+                    <item.icon className="h-5 w-5" />
+                    {item.title}
+                  </div>
+                  <div className="ml-8 space-y-1">
+                    {item.submenu.map((subItem) => (
+                      <Link
+                        key={subItem.title}
+                        href={subItem.href}
+                        onClick={() => setIsOpen(false)}
+                        className={cn(
+                          "block rounded-lg px-3 py-2 text-sm transition-colors",
+                          subItem.isActive
+                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                            : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+                        )}
+                      >
+                        {subItem.title}
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               )}
-            </>
-          )}
+            </div>
+          ))}
+        </nav>
+      </div>
+
+      {/* Footer */}
+      <div className="border-t p-4">
+        <div className="text-sm text-gray-500 dark:text-gray-400">
+          <span>© 2024 Knowledge Hub Nepal</span>
         </div>
-      ))}
-    </>
+      </div>
+    </div>
   )
 
   return (
     <>
-      {/* Mobile Menu */}
-      <div className="lg:hidden">
-        <Sheet open={isOpen} onOpenChange={setIsOpen}>
-          <SheetContent side="left" className="p-0 w-72">
-            <div className="flex h-14 items-center border-b px-4">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
-                  <span className="text-lg font-bold text-white">K</span>
-                </div>
-                <span className="font-semibold text-lg">Knowledge Hub</span>
-              </div>
-            </div>
-            <ScrollArea className="h-[calc(100vh-3.5rem)]">
-              <div className="px-2 py-4">
-                <NavItems />
-              </div>
-            </ScrollArea>
-          </SheetContent>
-        </Sheet>
-      </div>
+      {/* Mobile Sidebar */}
+      <Sheet open={isOpen} onOpenChange={setIsOpen}>
+        <SheetContent side="left" className="w-80 p-0">
+          <SidebarContent />
+        </SheetContent>
+      </Sheet>
 
-      {/* Desktop Sidebar - Fixed position */}
-      <div className="fixed hidden lg:block top-0 left-0 bottom-0 w-64 border-r bg-white dark:bg-gray-950 dark:border-gray-800 z-30">
-        <div className="flex h-14 items-center border-b px-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
-              <span className="text-lg font-bold text-white">K</span>
-            </div>
-            <span className="font-semibold text-lg">Knowledge Hub</span>
-          </div>
+      {/* Desktop Sidebar */}
+      <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
+        <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+          <SidebarContent />
         </div>
-        <ScrollArea className="h-[calc(100vh-3.5rem)]">
-          <div className="px-2 py-4">
-            <NavItems />
-          </div>
-        </ScrollArea>
       </div>
     </>
   )

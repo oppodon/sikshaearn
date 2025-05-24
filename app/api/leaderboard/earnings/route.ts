@@ -1,11 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
-import AffiliateEarning from "@/models/AffiliateEarning"
-import User from "@/models/User"
+import { ensureModelsRegistered, BalanceTransaction, User } from "@/lib/models"
 
 export async function GET(req: NextRequest) {
   try {
     await dbConnect()
+    ensureModelsRegistered()
+
     console.log("Connected to MongoDB for earnings leaderboard")
 
     const searchParams = req.nextUrl.searchParams
@@ -30,22 +31,28 @@ export async function GET(req: NextRequest) {
       console.log("Date filter for week:", startOfWeek)
     }
 
-    // Aggregate earnings by user
+    // Aggregate earnings by user from BalanceTransaction
     console.log("Running aggregation pipeline with filter:", dateFilter)
-    const topAffiliates = await AffiliateEarning.aggregate([
-      { $match: { ...dateFilter, status: { $in: ["available", "pending", "withdrawn", "processing"] } } },
+    const topAffiliates = await BalanceTransaction.aggregate([
+      {
+        $match: {
+          ...dateFilter,
+          status: "completed",
+          type: "credit",
+        },
+      },
       {
         $group: {
           _id: "$user",
           totalEarnings: { $sum: "$amount" },
           directEarnings: {
             $sum: {
-              $cond: [{ $eq: ["$tier", 1] }, "$amount", 0],
+              $cond: [{ $eq: [{ $ifNull: ["$metadata.tier", 1] }, 1] }, "$amount", 0],
             },
           },
           tier2Earnings: {
             $sum: {
-              $cond: [{ $eq: ["$tier", 2] }, "$amount", 0],
+              $cond: [{ $eq: [{ $ifNull: ["$metadata.tier", 1] }, 2] }, "$amount", 0],
             },
           },
           count: { $sum: 1 },

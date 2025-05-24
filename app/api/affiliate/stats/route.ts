@@ -1,80 +1,83 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth/next"
+import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import dbConnect from "@/lib/mongodb"
-import User from "@/models/User"
-import AffiliateEarning from "@/models/AffiliateEarning"
-import Balance from "@/models/Balance"
+import { connectToDatabase } from "@/lib/mongodb"
+import { ensureModelsRegistered, User, Balance, BalanceTransaction } from "@/lib/models"
 
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
 
-    if (!session?.user?.email) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    await dbConnect()
-    console.log("Connected to MongoDB for affiliate stats")
+    await connectToDatabase()
+    ensureModelsRegistered()
 
-    // Get user
-    const user = await User.findOne({ email: session.user.email })
+    const userId = session.user.id
+    console.log("📊 Fetching affiliate stats for user:", userId)
+
+    // Get user data
+    const user = await User.findById(userId)
     if (!user) {
-      return NextResponse.json({ message: "User not found" }, { status: 404 })
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    console.log(`Fetching stats for user: ${user._id}`)
+    // Get balance directly from Balance collection
+    let balance = await Balance.findOne({ user: userId })
 
-    // Get balance
-    const balance = await Balance.findOne({ user: user._id })
-    console.log("User balance:", balance)
+    if (!balance) {
+      balance = {
+        available: 0,
+        pending: 0,
+        processing: 0,
+        withdrawn: 0,
+      }
+    }
 
-    // Get direct referrals
-    const directReferrals = await User.countDocuments({ referredBy: user._id })
-    console.log("Direct referrals:", directReferrals)
+    console.log("💰 User balance:", {
+      available: balance.available,
+      pending: balance.pending,
+      processing: balance.processing,
+      withdrawn: balance.withdrawn,
+    })
 
-    // Get tier 2 referrals (users referred by your referrals)
-    const directReferralUsers = await User.find({ referredBy: user._id }).select("_id")
-    const directReferralIds = directReferralUsers.map((ref) => ref._id)
-    const tier2Referrals = await User.countDocuments({ referredBy: { $in: directReferralIds } })
-    console.log("Tier 2 referrals:", tier2Referrals)
+    // Get referral counts
+    const directReferrals = await User.countDocuments({ referredBy: userId })
+    const tier2Referrals = await User.countDocuments({
+      referredBy: { $in: await User.find({ referredBy: userId }).distinct("_id") },
+    })
 
-    // Get earnings
-    const earnings = await AffiliateEarning.aggregate([
-      { $match: { user: user._id } },
-      {
-        $group: {
-          _id: null,
-          totalEarnings: { $sum: "$amount" },
-          directEarnings: {
-            $sum: {
-              $cond: [{ $eq: ["$tier", 1] }, "$amount", 0],
-            },
-          },
-          tier2Earnings: {
-            $sum: {
-              $cond: [{ $eq: ["$tier", 2] }, "$amount", 0],
-            },
-          },
-        },
-      },
-    ])
-    console.log("Earnings aggregation:", earnings)
+    console.log(`👥 Referrals - Direct: ${directReferrals}, Tier 2: ${tier2Referrals}`)
+
+    // Get total earnings from BalanceTransaction
+    const allCommissions = await BalanceTransaction.find({
+      user: userId,
+      type: "credit",
+      status: "completed",
+    }).lean()
+
+    const totalEarnings = allCommissions.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0)
+    const directEarnings = allCommissions
+      .filter((tx) => tx.metadata?.tier === 1 || !tx.metadata?.tier)
+      .reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0)
+    const tier2Earnings = allCommissions
+      .filter((tx) => tx.metadata?.tier === 2)
+      .reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0)
 
     // Calculate conversion rate
-    const linkClicks = user.referralClicks || 0
+    const linkClicks = user.linkClicks || 0
     const conversionRate = linkClicks > 0 ? Math.round((directReferrals / linkClicks) * 100) : 0
-    console.log(`Link clicks: ${linkClicks}, Conversion rate: ${conversionRate}%`)
 
-    // Prepare response
     const stats = {
-      totalEarnings: earnings.length > 0 ? earnings[0].totalEarnings : 0,
-      directEarnings: earnings.length > 0 ? earnings[0].directEarnings : 0,
-      tier2Earnings: earnings.length > 0 ? earnings[0].tier2Earnings : 0,
-      availableBalance: balance?.available || 0,
-      pendingBalance: balance?.pending || 0,
-      processingBalance: balance?.processing || 0,
-      withdrawnBalance: balance?.withdrawn || 0,
+      totalEarnings,
+      directEarnings,
+      tier2Earnings,
+      availableBalance: Number(balance.available) || 0,
+      pendingBalance: Number(balance.pending) || 0,
+      processingBalance: Number(balance.processing) || 0,
+      withdrawnBalance: Number(balance.withdrawn) || 0,
       totalReferrals: directReferrals + tier2Referrals,
       directReferrals,
       tier2Referrals,
@@ -82,10 +85,11 @@ export async function GET() {
       linkClicks,
     }
 
-    console.log("Returning stats:", stats)
+    console.log("📤 Returning affiliate stats:", stats)
+
     return NextResponse.json(stats)
   } catch (error) {
-    console.error("Error fetching affiliate stats:", error)
-    return NextResponse.json({ message: "Failed to fetch affiliate stats", error: String(error) }, { status: 500 })
+    console.error("❌ Error fetching affiliate stats:", error)
+    return NextResponse.json({ error: "Failed to fetch affiliate stats" }, { status: 500 })
   }
 }

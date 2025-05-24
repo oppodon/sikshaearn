@@ -17,13 +17,13 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Bell, Menu, Moon, Search, Sun, User, Settings, ExternalLink } from "lucide-react"
 import { useTheme } from "next-themes"
-import { useSidebar } from "@/components/ui/sidebar"
+import { useAdminSidebar } from "@/components/admin/admin-sidebar"
 import { useSession, signOut } from "next-auth/react"
 
 export function AdminHeader() {
   const pathname = usePathname()
   const { theme, setTheme } = useTheme()
-  const { setIsOpen } = useSidebar()
+  const { setIsOpen } = useAdminSidebar()
   const { data: session } = useSession()
   const [searchOpen, setSearchOpen] = useState(false)
 

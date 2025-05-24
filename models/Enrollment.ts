@@ -4,6 +4,7 @@ export interface IEnrollment extends Document {
   user: mongoose.Types.ObjectId
   package: mongoose.Types.ObjectId
   transaction: mongoose.Types.ObjectId
+  courses: mongoose.Types.ObjectId[] // Array of course IDs from the package
   startDate: Date
   endDate: Date | null // null for lifetime access
   isActive: boolean
@@ -23,17 +24,26 @@ const EnrollmentSchema = new Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: [true, "User is required"],
+      index: true,
     },
     package: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Package",
       required: [true, "Package is required"],
+      index: true,
     },
     transaction: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Transaction",
       required: [true, "Transaction is required"],
+      index: true,
     },
+    courses: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Course",
+      },
+    ],
     startDate: {
       type: Date,
       default: Date.now,
@@ -69,6 +79,8 @@ const EnrollmentSchema = new Schema(
     progress: {
       type: Number,
       default: 0,
+      min: 0,
+      max: 100,
     },
     lastAccessed: {
       type: Date,
@@ -79,6 +91,10 @@ const EnrollmentSchema = new Schema(
     timestamps: true,
   },
 )
+
+// Compound indexes for better query performance
+EnrollmentSchema.index({ user: 1, package: 1 }, { unique: true })
+EnrollmentSchema.index({ user: 1, isActive: 1 })
 
 const Enrollment = mongoose.models.Enrollment || mongoose.model<IEnrollment>("Enrollment", EnrollmentSchema)
 

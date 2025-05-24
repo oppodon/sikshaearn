@@ -1,171 +1,185 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth/next"
+import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import dbConnect from "@/lib/mongodb"
-import Transaction from "@/models/Transaction"
-import User from "@/models/User"
-import Enrollment from "@/models/Enrollment"
+import { connectToDatabase } from "@/lib/mongodb"
+import { ensureModelsRegistered, Transaction, Package, Enrollment } from "@/lib/models"
 import { BalanceService } from "@/lib/balance-service"
 
 export async function POST(req: NextRequest) {
   try {
+    console.log("=== 🚀 STARTING TRANSACTION APPROVAL ===")
+
     const session = await getServerSession(authOptions)
-
-    // Check if user is authenticated and is an admin
     if (!session || session.user.role !== "admin") {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
     }
-
-    await dbConnect()
 
     const { transactionId } = await req.json()
-
     if (!transactionId) {
-      return NextResponse.json({ message: "Transaction ID is required" }, { status: 400 })
+      return NextResponse.json({ success: false, error: "Transaction ID is required" }, { status: 400 })
     }
 
-    // Find the transaction
-    const transaction = await Transaction.findById(transactionId).populate("package").populate("user")
+    await connectToDatabase()
+    ensureModelsRegistered()
+
+    // Get transaction with populated data
+    const transaction = await Transaction.findById(transactionId)
+      .populate("user", "name email referralCode referredBy")
+      .populate("package", "title price courses")
 
     if (!transaction) {
-      return NextResponse.json({ message: "Transaction not found" }, { status: 404 })
+      return NextResponse.json({ success: false, error: "Transaction not found" }, { status: 404 })
     }
 
-    if (transaction.status === "approved") {
-      return NextResponse.json({ message: "Transaction already approved" }, { status: 400 })
-    }
-
-    // Update transaction status
-    transaction.status = "approved"
-    transaction.approvedAt = new Date()
-    transaction.approvedBy = session.user.id
-
-    await transaction.save()
-    console.log("Transaction approved:", transaction._id)
-
-    // Get the package details
-    const packageData = transaction.package
-    if (!packageData) {
-      return NextResponse.json({ message: "Package not found" }, { status: 404 })
-    }
-
-    // Create enrollment
-    const existingEnrollment = await Enrollment.findOne({
-      user: transaction.user._id,
-      package: transaction.package._id,
+    console.log("📋 Transaction details:", {
+      id: transaction._id,
+      status: transaction.status,
+      user: transaction.user?.email,
+      package: transaction.package?.title,
+      amount: transaction.amount,
+      affiliateId: transaction.affiliateId,
+      affiliateCommission: transaction.affiliateCommission,
+      tier2AffiliateId: transaction.tier2AffiliateId,
+      tier2Commission: transaction.tier2Commission,
     })
 
-    if (!existingEnrollment) {
-      try {
-        // Calculate end date if package has duration
-        let endDate = null
-        if (packageData.duration && packageData.durationType) {
-          endDate = new Date()
-          if (packageData.durationType === "days") {
-            endDate.setDate(endDate.getDate() + packageData.duration)
-          } else if (packageData.durationType === "months") {
-            endDate.setMonth(endDate.getMonth() + packageData.duration)
-          } else if (packageData.durationType === "years") {
-            endDate.setFullYear(endDate.getFullYear() + packageData.duration)
-          }
-        }
+    if (transaction.status === "completed") {
+      return NextResponse.json({ success: false, error: "Transaction already approved" }, { status: 400 })
+    }
 
-        // Create new enrollment with progress as a number
-        const newEnrollment = new Enrollment({
+    // Step 1: Update transaction status
+    transaction.status = "completed"
+    transaction.completedAt = new Date()
+    await transaction.save()
+    console.log("✅ Transaction status updated to completed")
+
+    // Step 2: Create enrollment
+    const packageData = await Package.findById(transaction.package._id).populate("courses")
+    if (packageData && packageData.courses) {
+      const existingEnrollment = await Enrollment.findOne({
+        user: transaction.user._id,
+        package: packageData._id,
+      })
+
+      if (!existingEnrollment) {
+        const courseIds = packageData.courses.map((course: any) => course._id)
+
+        await Enrollment.create({
           user: transaction.user._id,
-          package: transaction.package._id,
+          package: packageData._id,
           transaction: transaction._id,
+          courses: courseIds,
           startDate: new Date(),
-          endDate: endDate,
           isActive: true,
           completedCourses: [],
           completedLessons: [],
-          progress: 0, // Progress as a number (percentage)
+          progress: 0,
           lastAccessed: new Date(),
         })
 
-        await newEnrollment.save()
-        console.log("New enrollment created:", newEnrollment._id)
-      } catch (error) {
-        console.error("Error creating enrollment:", error)
-        throw error
+        console.log("✅ Enrollment created for", courseIds.length, "courses")
       }
-    } else {
-      console.log("Enrollment already exists:", existingEnrollment._id)
     }
 
-    // Process affiliate commissions if applicable
-    if (transaction.affiliateId) {
-      const packageAmount = packageData.price || 0
+    // Step 3: Process commissions
+    const commissionResults = []
+
+    // Tier 1 commission (Direct referrer)
+    if (transaction.affiliateId && transaction.affiliateCommission > 0) {
+      console.log(
+        `💰 Processing Tier 1 commission: ₹${transaction.affiliateCommission} for user ${transaction.affiliateId}`,
+      )
 
       try {
-        // Calculate direct referral commission (65%)
-        const directCommission = Math.round(packageAmount * 0.65)
-
-        // Add commission to affiliate's balance
-        await BalanceService.addCommission({
+        const tier1Result = await BalanceService.addCommission({
           userId: transaction.affiliateId,
-          amount: directCommission,
+          amount: transaction.affiliateCommission,
           tier: 1,
           transactionId: transaction._id,
-          packageId: packageData._id,
-          packageTitle: packageData.title,
+          packageId: transaction.package._id,
+          packageTitle: transaction.package.title,
           customerName: transaction.user.name,
           customerEmail: transaction.user.email,
           commissionRate: 65,
         })
 
-        console.log(`Direct commission added: ${directCommission} to user ${transaction.affiliateId}`)
+        commissionResults.push({
+          tier: 1,
+          userId: transaction.affiliateId,
+          amount: transaction.affiliateCommission,
+          success: true,
+        })
 
-        // Process second-tier commission if applicable (5%)
-        const referrer = await User.findById(transaction.affiliateId)
-        if (referrer && referrer.referredBy) {
-          const secondTierCommission = Math.round(packageAmount * 0.05)
-
-          await BalanceService.addCommission({
-            userId: referrer.referredBy,
-            amount: secondTierCommission,
-            tier: 2,
-            transactionId: transaction._id,
-            packageId: packageData._id,
-            packageTitle: packageData.title,
-            customerName: transaction.user.name,
-            customerEmail: transaction.user.email,
-            commissionRate: 5,
-          })
-
-          console.log(`Second-tier commission added: ${secondTierCommission} to user ${referrer.referredBy}`)
-        }
+        console.log("✅ Tier 1 commission added successfully")
       } catch (error) {
-        console.error("Error processing commissions:", error)
-        // Continue with transaction approval even if commission processing fails
+        console.error("❌ Tier 1 commission error:", error)
+        commissionResults.push({
+          tier: 1,
+          userId: transaction.affiliateId,
+          amount: transaction.affiliateCommission,
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        })
       }
     }
 
-    // Update user balance
-    try {
-      const user = await User.findById(transaction.user._id)
-      if (!user) {
-        console.error("User not found:", transaction.user._id)
-        return NextResponse.json({ message: "User not found" }, { status: 404 })
+    // Tier 2 commission (Second-level referrer)
+    if (transaction.tier2AffiliateId && transaction.tier2Commission > 0) {
+      console.log(
+        `💰 Processing Tier 2 commission: ₹${transaction.tier2Commission} for user ${transaction.tier2AffiliateId}`,
+      )
+
+      try {
+        const tier2Result = await BalanceService.addCommission({
+          userId: transaction.tier2AffiliateId,
+          amount: transaction.tier2Commission,
+          tier: 2,
+          transactionId: transaction._id,
+          packageId: transaction.package._id,
+          packageTitle: transaction.package.title,
+          customerName: transaction.user.name,
+          customerEmail: transaction.user.email,
+          commissionRate: 5,
+        })
+
+        commissionResults.push({
+          tier: 2,
+          userId: transaction.tier2AffiliateId,
+          amount: transaction.tier2Commission,
+          success: true,
+        })
+
+        console.log("✅ Tier 2 commission added successfully")
+      } catch (error) {
+        console.error("❌ Tier 2 commission error:", error)
+        commissionResults.push({
+          tier: 2,
+          userId: transaction.tier2AffiliateId,
+          amount: transaction.tier2Commission,
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        })
       }
-
-      const packagePrice = packageData.price || 0
-      user.balance = (user.balance || 0) + packagePrice
-      await user.save()
-
-      console.log(`User balance updated: ${transaction.user._id}, new balance: ${user.balance}`)
-    } catch (error) {
-      console.error("Error updating user balance:", error)
-      // Optionally, handle the error further, e.g., by logging or sending a notification.
     }
+
+    console.log("=== ✅ TRANSACTION APPROVAL COMPLETED ===")
+    console.log("📊 Commission Results:", commissionResults)
 
     return NextResponse.json({
-      message: "Transaction approved and commissions processed successfully",
+      success: true,
+      message: "Transaction approved successfully",
       transactionId: transaction._id,
+      commissionResults,
     })
   } catch (error) {
-    console.error("Error approving transaction:", error)
-    return NextResponse.json({ error: "Failed to approve transaction", details: error.message }, { status: 500 })
+    console.error("❌ Error in transaction approval:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to approve transaction",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
+    )
   }
 }

@@ -4,6 +4,18 @@ import GoogleProvider from "next-auth/providers/google"
 import dbConnect from "@/lib/mongodb"
 import User from "@/models/User"
 import { compare } from "bcryptjs"
+import jwt from "jsonwebtoken"
+
+// Add this function to handle JWT token signing
+export async function signJwtToken(payload: any) {
+  try {
+    const secret = process.env.NEXTAUTH_SECRET || "fallback-secret-key"
+    return jwt.sign(payload, secret, { expiresIn: "7d" })
+  } catch (error) {
+    console.error("JWT signing error:", error)
+    throw new Error("Failed to sign token")
+  }
+}
 
 export const authOptions: NextAuthOptions = {
   session: {

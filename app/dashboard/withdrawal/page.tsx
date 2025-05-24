@@ -83,20 +83,42 @@ export default function WithdrawalPage() {
   const fetchEarningsData = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/affiliate/earnings?limit=1")
+      console.log("🔍 Fetching balance data...")
+
+      const response = await fetch("/api/affiliate/balance")
 
       if (!response.ok) {
-        throw new Error("Failed to fetch earnings data")
+        throw new Error("Failed to fetch balance data")
       }
 
       const data = await response.json()
-      setEarningsSummary(data.summary)
+      console.log("💰 Balance data received:", data)
+
+      // Ensure all values are numbers and handle null/undefined
+      const safeData = {
+        pending: Number(data.pending) || 0,
+        available: Number(data.available) || 0,
+        withdrawn: Number(data.withdrawn) || 0,
+        processing: Number(data.processing) || 0,
+        total: Number(data.total) || 0,
+      }
+
+      console.log("✅ Safe balance data:", safeData)
+      setEarningsSummary(safeData)
     } catch (error) {
-      console.error("Error fetching earnings data:", error)
+      console.error("❌ Error fetching balance data:", error)
       toast({
         title: "Error",
-        description: "Failed to load earnings data. Please try again.",
+        description: "Failed to load balance data. Please try again.",
         variant: "destructive",
+      })
+      // Set default values on error
+      setEarningsSummary({
+        pending: 0,
+        available: 0,
+        withdrawn: 0,
+        processing: 0,
+        total: 0,
       })
     } finally {
       setLoading(false)
@@ -245,12 +267,13 @@ export default function WithdrawalPage() {
     }
   }
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | null | undefined) => {
+    const safeAmount = Number(amount) || 0
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
       currency: "INR",
       maximumFractionDigits: 0,
-    }).format(amount)
+    }).format(safeAmount)
   }
 
   const renderKYCAlert = () => {

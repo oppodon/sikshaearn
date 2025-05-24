@@ -1,7 +1,5 @@
 import mongoose from "mongoose"
-import Balance from "@/models/Balance"
-import BalanceTransaction from "@/models/BalanceTransaction"
-import User from "@/models/User"
+import { ensureModelsRegistered, Balance, BalanceTransaction } from "@/lib/models"
 
 export class BalanceService {
   /**
@@ -9,26 +7,26 @@ export class BalanceService {
    */
   static async getOrCreateBalance(userId: string | mongoose.Types.ObjectId) {
     try {
+      ensureModelsRegistered()
+
       let balance = await Balance.findOne({ user: userId })
 
       if (!balance) {
         balance = await Balance.create({
           user: userId,
-          totalEarnings: 0,
-          availableBalance: 0,
-          pendingBalance: 0,
-          withdrawnBalance: 0,
-          processingBalance: 0,
-          lastUpdated: new Date(),
+          available: 0,
+          pending: 0,
+          processing: 0,
+          withdrawn: 0,
+          lastSyncedAt: new Date(),
         })
 
-        // Update user with balance reference
-        await User.findByIdAndUpdate(userId, { balance: balance._id })
+        console.log("✅ Created new balance for user:", userId)
       }
 
       return balance
     } catch (error) {
-      console.error("Error getting or creating balance:", error)
+      console.error("❌ Error getting or creating balance:", error)
       throw error
     }
   }
@@ -57,20 +55,50 @@ export class BalanceService {
     customerEmail?: string
     commissionRate?: number
   }) {
-    const session = await mongoose.startSession()
-    session.startTransaction()
+    let session: mongoose.ClientSession | null = null
 
     try {
+      ensureModelsRegistered()
+
+      console.log(`💰 Starting commission addition: ₹${amount} to user ${userId} (Tier ${tier})`)
+
+      // Start session for transaction
+      session = await mongoose.startSession()
+      await session.startTransaction()
+
       // Get or create balance
-      const balance = await this.getOrCreateBalance(userId)
-      const balanceBefore = balance.availableBalance
+      let balance = await Balance.findOne({ user: userId }).session(session)
 
-      // Add directly to available balance (no pending period)
-      balance.availableBalance += amount
-      balance.totalEarnings += amount
-      balance.lastUpdated = new Date()
+      if (!balance) {
+        balance = await Balance.create(
+          [
+            {
+              user: userId,
+              available: 0,
+              pending: 0,
+              processing: 0,
+              withdrawn: 0,
+              lastSyncedAt: new Date(),
+            },
+          ],
+          { session },
+        )
+        balance = balance[0]
+        console.log("✅ Created new balance for user:", userId)
+      }
 
+      // Ensure we have valid numbers
+      const currentAvailable = Number(balance.available) || 0
+      console.log(`📊 Balance before: ₹${currentAvailable}`)
+
+      // Update balance fields - ADD to existing balance
+      balance.available = currentAvailable + amount
+      balance.lastSyncedAt = new Date()
+
+      // Save the updated balance
       await balance.save({ session })
+
+      console.log(`📊 Balance after: ₹${balance.available}`)
 
       // Create balance transaction record
       const balanceTransaction = await BalanceTransaction.create(
@@ -78,244 +106,43 @@ export class BalanceService {
           {
             user: userId,
             type: "credit",
-            category: "commission",
             amount,
             description: `${tier === 1 ? "Direct" : "Second-tier"} referral commission from ${packageTitle || "package purchase"}`,
-            referenceId: transactionId,
-            referenceType: "Transaction",
-            tier,
-            status: "completed", // Mark as completed immediately
-            balanceBefore,
-            balanceAfter: balance.availableBalance,
+            status: "completed",
             metadata: {
               packageId,
               packageTitle,
               customerName,
               customerEmail,
               commissionRate,
+              tier,
+              transactionId,
             },
           },
         ],
         { session },
       )
 
-      // Update user's referral earnings
-      if (tier === 1) {
-        await User.findByIdAndUpdate(
-          userId,
-          {
-            $inc: {
-              referralEarnings: amount,
-              totalEarnings: amount,
-            },
-          },
-          { session },
-        )
-      } else if (tier === 2) {
-        await User.findByIdAndUpdate(
-          userId,
-          {
-            $inc: {
-              tier2Earnings: amount,
-              totalEarnings: amount,
-            },
-          },
-          { session },
-        )
-      }
+      console.log(`📝 Balance transaction created: ${balanceTransaction[0]._id}`)
 
       await session.commitTransaction()
 
-      console.log(`Commission added: ${amount} to user ${userId} (Tier ${tier})`)
+      console.log(`✅ Commission added successfully: ₹${amount} to user ${userId} (Tier ${tier})`)
 
       return {
         balance,
         transaction: balanceTransaction[0],
       }
     } catch (error) {
-      await session.abortTransaction()
-      console.error("Error adding commission:", error)
+      if (session) {
+        await session.abortTransaction()
+      }
+      console.error("❌ Error adding commission:", error)
       throw error
     } finally {
-      session.endSession()
-    }
-  }
-
-  /**
-   * Move pending balance to available (after 14 days)
-   */
-  static async movePendingToAvailable(userId: string | mongoose.Types.ObjectId, amount: number) {
-    const session = await mongoose.startSession()
-    session.startTransaction()
-
-    try {
-      const balance = await Balance.findOne({ user: userId }).session(session)
-
-      if (!balance) {
-        throw new Error("Balance not found")
+      if (session) {
+        await session.endSession()
       }
-
-      if (balance.pendingBalance < amount) {
-        throw new Error("Insufficient pending balance")
-      }
-
-      const balanceBefore = balance.availableBalance
-
-      balance.pendingBalance -= amount
-      balance.availableBalance += amount
-      balance.lastUpdated = new Date()
-
-      await balance.save({ session })
-
-      // Create balance transaction record
-      await BalanceTransaction.create(
-        [
-          {
-            user: userId,
-            type: "transfer",
-            category: "commission",
-            amount,
-            description: "Commission moved from pending to available",
-            status: "completed",
-            balanceBefore,
-            balanceAfter: balance.availableBalance,
-          },
-        ],
-        { session },
-      )
-
-      await session.commitTransaction()
-
-      return balance
-    } catch (error) {
-      await session.abortTransaction()
-      throw error
-    } finally {
-      session.endSession()
-    }
-  }
-
-  /**
-   * Process withdrawal
-   */
-  static async processWithdrawal({
-    userId,
-    amount,
-    withdrawalId,
-  }: {
-    userId: string | mongoose.Types.ObjectId
-    amount: number
-    withdrawalId: string | mongoose.Types.ObjectId
-  }) {
-    const session = await mongoose.startSession()
-    session.startTransaction()
-
-    try {
-      const balance = await Balance.findOne({ user: userId }).session(session)
-
-      if (!balance) {
-        throw new Error("Balance not found")
-      }
-
-      if (balance.availableBalance < amount) {
-        throw new Error("Insufficient available balance")
-      }
-
-      const balanceBefore = balance.availableBalance
-
-      balance.availableBalance -= amount
-      balance.processingBalance += amount
-      balance.lastUpdated = new Date()
-
-      await balance.save({ session })
-
-      // Create balance transaction record
-      await BalanceTransaction.create(
-        [
-          {
-            user: userId,
-            type: "debit",
-            category: "withdrawal",
-            amount,
-            description: "Withdrawal request processed",
-            referenceId: withdrawalId,
-            referenceType: "Withdrawal",
-            status: "pending",
-            balanceBefore,
-            balanceAfter: balance.availableBalance,
-          },
-        ],
-        { session },
-      )
-
-      await session.commitTransaction()
-
-      return balance
-    } catch (error) {
-      await session.abortTransaction()
-      throw error
-    } finally {
-      session.endSession()
-    }
-  }
-
-  /**
-   * Complete withdrawal
-   */
-  static async completeWithdrawal({
-    userId,
-    amount,
-    withdrawalId,
-  }: {
-    userId: string | mongoose.Types.ObjectId
-    amount: number
-    withdrawalId: string | mongoose.Types.ObjectId
-  }) {
-    const session = await mongoose.startSession()
-    session.startTransaction()
-
-    try {
-      const balance = await Balance.findOne({ user: userId }).session(session)
-
-      if (!balance) {
-        throw new Error("Balance not found")
-      }
-
-      if (balance.processingBalance < amount) {
-        throw new Error("Insufficient processing balance")
-      }
-
-      const balanceBefore = balance.processingBalance
-
-      balance.processingBalance -= amount
-      balance.withdrawnBalance += amount
-      balance.lastUpdated = new Date()
-
-      await balance.save({ session })
-
-      // Update balance transaction status
-      await BalanceTransaction.findOneAndUpdate(
-        {
-          user: userId,
-          referenceId: withdrawalId,
-          referenceType: "Withdrawal",
-          type: "debit",
-        },
-        {
-          status: "completed",
-          description: "Withdrawal completed successfully",
-        },
-        { session },
-      )
-
-      await session.commitTransaction()
-
-      return balance
-    } catch (error) {
-      await session.abortTransaction()
-      throw error
-    } finally {
-      session.endSession()
     }
   }
 
@@ -324,62 +151,89 @@ export class BalanceService {
    */
   static async getBalanceSummary(userId: string | mongoose.Types.ObjectId) {
     try {
+      ensureModelsRegistered()
+
+      console.log(`📊 Getting balance summary for user: ${userId}`)
+
+      // Get or create balance
       const balance = await this.getOrCreateBalance(userId)
 
       // Get recent transactions
       const recentTransactions = await BalanceTransaction.find({ user: userId })
         .sort({ createdAt: -1 })
         .limit(10)
-        .populate("metadata.packageId", "title")
         .lean()
+
+      console.log(`📊 Balance summary for user ${userId}:`, {
+        available: balance.available,
+        pending: balance.pending,
+        processing: balance.processing,
+        withdrawn: balance.withdrawn,
+        transactionsCount: recentTransactions.length,
+      })
 
       return {
         balance,
         recentTransactions,
       }
     } catch (error) {
-      console.error("Error getting balance summary:", error)
+      console.error("❌ Error getting balance summary:", error)
       throw error
     }
   }
 
   /**
-   * Run scheduled task to move pending balances to available
-   * This should be run daily via a cron job
+   * Sync balance from transactions (repair function)
    */
-  static async processPendingCommissions() {
+  static async syncUserBalance(userId: string | mongoose.Types.ObjectId) {
     try {
-      // Find transactions that are pending and older than 14 days
-      const fourteenDaysAgo = new Date()
-      fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
+      ensureModelsRegistered()
 
-      const pendingTransactions = await BalanceTransaction.find({
-        status: "pending",
-        category: "commission",
-        createdAt: { $lt: fourteenDaysAgo },
+      console.log(`🔄 Syncing balance for user: ${userId}`)
+
+      // Get all completed balance transactions for this user
+      const transactions = await BalanceTransaction.find({
+        user: userId,
+        status: "completed",
+        type: "credit",
       })
 
-      console.log(`Found ${pendingTransactions.length} pending transactions to process`)
+      console.log(`📊 Found ${transactions.length} completed commission transactions`)
 
-      for (const transaction of pendingTransactions) {
-        try {
-          // Move from pending to available
-          await this.movePendingToAvailable(transaction.user, transaction.amount)
+      // Calculate totals
+      let totalAvailable = 0
 
-          // Update transaction status
-          transaction.status = "completed"
-          transaction.description += " (moved to available balance)"
-          await transaction.save()
-
-          console.log(`Processed transaction ${transaction._id} for user ${transaction.user}`)
-        } catch (error) {
-          console.error(`Error processing transaction ${transaction._id}:`, error)
-        }
+      for (const transaction of transactions) {
+        const amount = Number(transaction.amount) || 0
+        totalAvailable += amount
+        console.log(`💰 Adding ₹${amount} from transaction ${transaction._id}`)
       }
 
-      return { processed: pendingTransactions.length }
+      console.log(`💰 Calculated total available: ₹${totalAvailable}`)
+
+      // Update or create balance
+      const balance = await Balance.findOneAndUpdate(
+        { user: userId },
+        {
+          $set: {
+            available: totalAvailable,
+            pending: 0,
+            processing: 0,
+            withdrawn: 0,
+            lastSyncedAt: new Date(),
+          },
+        },
+        {
+          upsert: true,
+          new: true,
+        },
+      )
+
+      console.log(`✅ Balance synced for user ${userId}: ₹${balance.available}`)
+
+      return balance
     } catch (error) {
-      console.error("Error processing pending commissions:", error)
+      console.error("❌ Error syncing balance:", error)
       throw error
     }
   }

@@ -98,7 +98,7 @@ export default function PaymentsPage() {
       })
 
       // Update the transaction in the list
-      setTransactions(transactions.map((t) => (t._id === transactionId ? { ...t, status: "completed" } : t)))
+      setTransactions(transactions.map((t) => (t._id === transactionId ? { ...t, status: "approved" } : t)))
     } catch (error: any) {
       toast({
         title: "Error",
@@ -186,8 +186,8 @@ export default function PaymentsPage() {
     switch (status) {
       case "pending":
         return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Pending</Badge>
-      case "completed":
-        return <Badge className="bg-green-100 text-green-800 border-green-200">Completed</Badge>
+      case "approved":
+        return <Badge className="bg-green-100 text-green-800 border-green-200">Approved</Badge>
       case "rejected":
         return <Badge className="bg-red-100 text-red-800 border-red-200">Rejected</Badge>
       default:
@@ -313,7 +313,7 @@ export default function PaymentsPage() {
                           <Eye className="h-4 w-4 mr-1" />
                           View
                         </Button>
-                        {transaction.status === "pending" && (
+                        {(transaction.status === "pending" || transaction.status === "pending_verification") && (
                           <>
                             <Button
                               variant="outline"
@@ -437,7 +437,7 @@ export default function PaymentsPage() {
             </div>
           )}
           <DialogFooter>
-            {selectedTransaction?.status === "pending" && (
+            {(selectedTransaction?.status === "pending" || selectedTransaction?.status === "pending_verification") && (
               <div className="flex gap-2 w-full">
                 <Button
                   variant="destructive"
