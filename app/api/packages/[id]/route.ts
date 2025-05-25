@@ -40,13 +40,11 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     const { id } = params
     const data = await request.json()
 
-    // Check if id is a valid ObjectId
-    if (!isValidObjectId(id)) {
-      return NextResponse.json({ success: false, error: "Invalid package ID format" }, { status: 400 })
-    }
+    // Check if id is a valid ObjectId or slug
+    const query = isValidObjectId(id) ? { _id: id } : { slug: id }
 
     // Find and update package
-    const updatedPackage = await Package.findByIdAndUpdate(id, data, { new: true })
+    const updatedPackage = await Package.findOneAndUpdate(query, data, { new: true })
       .populate({
         path: "courses",
         select: "title slug description thumbnail instructor duration lessons rating reviewCount",
@@ -69,13 +67,11 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
     await connectToDatabase()
     const { id } = params
 
-    // Check if id is a valid ObjectId
-    if (!isValidObjectId(id)) {
-      return NextResponse.json({ success: false, error: "Invalid package ID format" }, { status: 400 })
-    }
+    // Check if id is a valid ObjectId or slug
+    const query = isValidObjectId(id) ? { _id: id } : { slug: id }
 
     // Find and delete package
-    const deletedPackage = await Package.findByIdAndDelete(id).lean()
+    const deletedPackage = await Package.findOneAndDelete(query).lean()
 
     if (!deletedPackage) {
       return NextResponse.json({ success: false, error: "Package not found" }, { status: 404 })
