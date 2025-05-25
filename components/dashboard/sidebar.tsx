@@ -56,16 +56,7 @@ export function DashboardSidebar() {
           href: "/dashboard/my-courses",
           isActive: pathname === "/dashboard/my-courses",
         },
-        {
-          title: "Course Player",
-          href: "/dashboard/courses",
-          isActive: pathname.includes("/dashboard/courses/"),
-        },
-        {
-          title: "Certificates",
-          href: "/dashboard/certificates",
-          isActive: pathname === "/dashboard/certificates",
-        },
+       
       ],
     },
     {
@@ -114,6 +105,11 @@ export function DashboardSidebar() {
           title: "Withdrawal Request",
           href: "/dashboard/withdrawal",
           isActive: pathname === "/dashboard/withdrawal",
+        },
+        {
+          title: "Earnings",
+          href: "/dashboard/earnings",
+          isActive: pathname === "/dashboard/earnings",
         },
         {
           title: "Purchase Request",
