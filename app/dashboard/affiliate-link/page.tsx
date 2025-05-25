@@ -62,8 +62,8 @@ export default function AffiliateLinksPage() {
   }
 
   const shareViaEmail = () => {
-    const subject = "Check out Knowledge Hub Nepal"
-    const body = `I thought you might be interested in Knowledge Hub Nepal. Use my referral link to sign up: ${referralLink}`
+    const subject = "Check out siksha earn"
+    const body = `I thought you might be interested in Siksha earn. Use my referral link to sign up: ${referralLink}`
     window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`)
   }
 
@@ -72,7 +72,7 @@ export default function AffiliateLinksPage() {
   }
 
   const shareViaTwitter = () => {
-    const text = "Check out Knowledge Hub Nepal. Use my referral link to sign up:"
+    const text = "Check out Siksha Earn. Use my referral link to sign up:"
     window.open(
       `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(referralLink)}`,
     )
@@ -224,7 +224,7 @@ export default function AffiliateLinksPage() {
           <Card>
             <CardHeader>
               <CardTitle>Marketing Materials</CardTitle>
-              <CardDescription>Download and use these materials to promote Knowledge Hub Nepal</CardDescription>
+              <CardDescription>Download and use these materials to promote Siksha earn</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">

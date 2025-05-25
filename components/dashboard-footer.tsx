@@ -141,7 +141,7 @@ export function DashboardFooter() {
         </div>
         <div className="mt-8 border-t pt-6 dark:border-gray-800">
           <p className="text-center text-sm text-gray-600 dark:text-gray-400">
-            © 2025 Knowledge Hub Nepal. All rights reserved.
+            © 2025 Siksha Earn Nepal. All rights reserved.
           </p>
         </div>
       </div>

@@ -150,12 +150,12 @@ export function DashboardSidebar() {
           <div className="relative h-8 w-8">
             <Image
               src="/placeholder.svg?height=32&width=32"
-              alt="Knowledge Hub Nepal Logo"
+              alt="Siksha Earn Logo"
               fill
               className="object-contain"
             />
           </div>
-          <span className="font-medium text-blue-600">Knowledge Hub Nepal</span>
+          <span className="font-medium text-blue-600">Siksha Earn</span>
         </Link>
       </div>
 
@@ -218,7 +218,7 @@ export function DashboardSidebar() {
       {/* Footer */}
       <div className="border-t p-4">
         <div className="text-sm text-gray-500 dark:text-gray-400">
-          <span>© 2024 Knowledge Hub Nepal</span>
+          <span>© 2024 Siksha Earn</span>
         </div>
       </div>
     </div>

@@ -12,7 +12,16 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/components/ui/use-toast"
-import { AlertCircle, ArrowLeft, CheckCircle, AlertTriangle, FileText } from "lucide-react"
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle,
+  AlertTriangle,
+  FileText,
+  Wallet,
+  CreditCard,
+  Smartphone,
+} from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 
@@ -94,7 +103,6 @@ export default function WithdrawalPage() {
       const data = await response.json()
       console.log("💰 Balance data received:", data)
 
-      // Ensure all values are numbers and handle null/undefined
       const safeData = {
         pending: Number(data.pending) || 0,
         available: Number(data.available) || 0,
@@ -112,7 +120,6 @@ export default function WithdrawalPage() {
         description: "Failed to load balance data. Please try again.",
         variant: "destructive",
       })
-      // Set default values on error
       setEarningsSummary({
         pending: 0,
         available: 0,
@@ -194,7 +201,6 @@ export default function WithdrawalPage() {
     e.preventDefault()
     setError("")
 
-    // Validate form
     if (formData.amount < 100) {
       setError("Minimum withdrawal amount is Rs. 100")
       return
@@ -235,7 +241,6 @@ export default function WithdrawalPage() {
 
       if (!response.ok) {
         if (response.status === 403 && data.kycRequired) {
-          // KYC verification required
           if (data.kycStatus === "pending") {
             setError("Your KYC verification is pending. Please wait for approval before making a withdrawal.")
           } else if (data.kycStatus === "rejected") {
@@ -279,13 +284,18 @@ export default function WithdrawalPage() {
   const renderKYCAlert = () => {
     if (kycStatus.status === null) {
       return (
-        <Alert variant="destructive" className="mb-6">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>KYC Verification Required</AlertTitle>
-          <AlertDescription>
+        <Alert className="border-red-200 bg-red-50">
+          <AlertTriangle className="h-4 w-4 text-red-600" />
+          <AlertTitle className="text-red-800">KYC Verification Required</AlertTitle>
+          <AlertDescription className="text-red-700">
             You need to complete KYC verification before you can withdraw funds.
-            <div className="mt-2">
-              <Button variant="outline" size="sm" onClick={() => router.push("/dashboard/kyc")}>
+            <div className="mt-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push("/dashboard/kyc")}
+                className="border-red-200 text-red-700 hover:bg-red-50"
+              >
                 <FileText className="mr-2 h-4 w-4" />
                 Complete KYC Verification
               </Button>
@@ -295,23 +305,28 @@ export default function WithdrawalPage() {
       )
     } else if (kycStatus.status === "pending") {
       return (
-        <Alert variant="warning" className="mb-6 border-amber-200 bg-amber-50 text-amber-800">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>KYC Verification Pending</AlertTitle>
-          <AlertDescription>
+        <Alert className="border-yellow-200 bg-yellow-50">
+          <AlertCircle className="h-4 w-4 text-yellow-600" />
+          <AlertTitle className="text-yellow-800">KYC Verification Pending</AlertTitle>
+          <AlertDescription className="text-yellow-700">
             Your KYC verification is currently under review. You'll be able to withdraw funds once it's approved.
           </AlertDescription>
         </Alert>
       )
     } else if (kycStatus.status === "rejected") {
       return (
-        <Alert variant="destructive" className="mb-6">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>KYC Verification Rejected</AlertTitle>
-          <AlertDescription>
+        <Alert className="border-red-200 bg-red-50">
+          <AlertTriangle className="h-4 w-4 text-red-600" />
+          <AlertTitle className="text-red-800">KYC Verification Rejected</AlertTitle>
+          <AlertDescription className="text-red-700">
             Your KYC verification was rejected. Reason: {kycStatus.rejectionReason || "Not specified"}
-            <div className="mt-2">
-              <Button variant="outline" size="sm" onClick={() => router.push("/dashboard/kyc")}>
+            <div className="mt-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push("/dashboard/kyc")}
+                className="border-red-200 text-red-700 hover:bg-red-50"
+              >
                 <FileText className="mr-2 h-4 w-4" />
                 Submit New KYC Verification
               </Button>
@@ -326,19 +341,19 @@ export default function WithdrawalPage() {
 
   if (status === "loading" || loading) {
     return (
-      <div className="flex-1 p-6">
-        <div className="max-w-2xl mx-auto">
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-4xl mx-auto p-6">
           <div className="flex items-center mb-6">
-            <Button variant="ghost" size="sm" className="mr-2" onClick={() => router.back()}>
+            <Button variant="ghost" size="sm" className="mr-3" onClick={() => router.back()}>
               <ArrowLeft className="h-4 w-4 mr-1" />
               Back
             </Button>
-            <h1 className="text-2xl font-bold">Withdraw Funds</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Withdraw Funds</h1>
           </div>
-          <Card>
-            <CardContent className="p-6">
+          <Card className="shadow-sm border-gray-200">
+            <CardContent className="p-8">
               <div className="flex justify-center items-center py-8">
-                <div className="h-8 w-8 border-2 border-t-transparent border-primary rounded-full animate-spin"></div>
+                <div className="h-8 w-8 border-2 border-t-transparent border-blue-600 rounded-full animate-spin"></div>
               </div>
             </CardContent>
           </Card>
@@ -349,32 +364,37 @@ export default function WithdrawalPage() {
 
   if (success) {
     return (
-      <div className="flex-1 p-6">
-        <div className="max-w-2xl mx-auto">
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-4xl mx-auto p-6">
           <div className="flex items-center mb-6">
-            <Button variant="ghost" size="sm" className="mr-2" onClick={() => router.back()}>
+            <Button variant="ghost" size="sm" className="mr-3" onClick={() => router.back()}>
               <ArrowLeft className="h-4 w-4 mr-1" />
               Back
             </Button>
-            <h1 className="text-2xl font-bold">Withdraw Funds</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Withdraw Funds</h1>
           </div>
-          <Card>
+          <Card className="shadow-sm border-gray-200">
             <CardContent className="p-8 text-center">
-              <div className="flex justify-center mb-4">
+              <div className="flex justify-center mb-6">
                 <div className="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center">
                   <CheckCircle className="h-8 w-8 text-green-600" />
                 </div>
               </div>
-              <h2 className="text-xl font-bold mb-2">Withdrawal Request Submitted</h2>
-              <p className="text-muted-foreground mb-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-3">Withdrawal Request Submitted</h2>
+              <p className="text-gray-600 mb-8 max-w-md mx-auto">
                 Your withdrawal request for {formatCurrency(formData.amount)} has been submitted successfully. Our team
                 will process your request within 2-3 business days.
               </p>
-              <div className="flex flex-col sm:flex-row gap-2 justify-center">
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Button variant="outline" onClick={() => router.push("/dashboard/payouts")}>
                   View Transactions
                 </Button>
-                <Button onClick={() => router.push("/dashboard/affiliate-dashboard")}>Back to Dashboard</Button>
+                <Button
+                  onClick={() => router.push("/dashboard/affiliate-dashboard")}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Back to Dashboard
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -384,50 +404,72 @@ export default function WithdrawalPage() {
   }
 
   return (
-    <div className="flex-1 p-6">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-4xl mx-auto p-6">
         <div className="flex items-center mb-6">
-          <Button variant="ghost" size="sm" className="mr-2" onClick={() => router.back()}>
+          <Button variant="ghost" size="sm" className="mr-3" onClick={() => router.back()}>
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back
           </Button>
-          <h1 className="text-2xl font-bold">Withdraw Funds</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Withdraw Funds</h1>
         </div>
 
-        {renderKYCAlert()}
+        {renderKYCAlert() && <div className="mb-6">{renderKYCAlert()}</div>}
 
         <div className="grid gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Available Balance</CardTitle>
-              <CardDescription>Your current available balance for withdrawal</CardDescription>
+          {/* Balance Overview */}
+          <Card className="shadow-sm border-gray-200">
+            <CardHeader className="border-b border-gray-100 bg-gray-50">
+              <CardTitle className="flex items-center gap-2 text-gray-900">
+                <Wallet className="h-5 w-5 text-blue-600" />
+                Available Balance
+              </CardTitle>
+              <CardDescription className="text-gray-600">Your current available balance for withdrawal</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{formatCurrency(earningsSummary.available)}</div>
-              <p className="text-sm text-muted-foreground mt-1">
-                Pending: {formatCurrency(earningsSummary.pending)} • Processing:{" "}
-                {formatCurrency(earningsSummary.processing)} • Withdrawn: {formatCurrency(earningsSummary.withdrawn)}
-              </p>
+            <CardContent className="p-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">{formatCurrency(earningsSummary.available)}</div>
+                  <div className="text-sm text-gray-500">Available</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-semibold text-yellow-600">{formatCurrency(earningsSummary.pending)}</div>
+                  <div className="text-sm text-gray-500">Pending</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-semibold text-blue-600">
+                    {formatCurrency(earningsSummary.processing)}
+                  </div>
+                  <div className="text-sm text-gray-500">Processing</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-semibold text-gray-600">{formatCurrency(earningsSummary.withdrawn)}</div>
+                  <div className="text-sm text-gray-500">Withdrawn</div>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
           {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
+            <Alert className="border-red-200 bg-red-50">
+              <AlertCircle className="h-4 w-4 text-red-600" />
+              <AlertTitle className="text-red-800">Error</AlertTitle>
+              <AlertDescription className="text-red-700">{error}</AlertDescription>
             </Alert>
           )}
 
+          {/* Withdrawal Form */}
           <form onSubmit={handleSubmit}>
-            <Card>
-              <CardHeader>
-                <CardTitle>Withdrawal Request</CardTitle>
-                <CardDescription>Enter your withdrawal details</CardDescription>
+            <Card className="shadow-sm border-gray-200">
+              <CardHeader className="border-b border-gray-100 bg-gray-50">
+                <CardTitle className="text-gray-900">Withdrawal Request</CardTitle>
+                <CardDescription className="text-gray-600">Enter your withdrawal details</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="p-6 space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="amount">Amount (Rs.)</Label>
+                  <Label htmlFor="amount" className="text-gray-700">
+                    Amount (Rs.)
+                  </Label>
                   <Input
                     id="amount"
                     name="amount"
@@ -437,127 +479,149 @@ export default function WithdrawalPage() {
                     value={formData.amount || ""}
                     onChange={handleInputChange}
                     placeholder="Enter amount"
+                    className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                     required
                   />
-                  <p className="text-xs text-muted-foreground">Minimum withdrawal amount: Rs. 100</p>
+                  <p className="text-xs text-gray-500">Minimum withdrawal amount: Rs. 100</p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Payment Method</Label>
-                  <RadioGroup
-                    value={formData.method}
-                    onValueChange={handleMethodChange}
-                    className="flex flex-col space-y-2"
-                  >
-                    <div className="flex items-center space-x-2">
+                <div className="space-y-3">
+                  <Label className="text-gray-700">Payment Method</Label>
+                  <RadioGroup value={formData.method} onValueChange={handleMethodChange} className="space-y-3">
+                    <div className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
                       <RadioGroupItem value="bank_transfer" id="bank_transfer" />
-                      <Label htmlFor="bank_transfer" className="cursor-pointer">
+                      <CreditCard className="h-4 w-4 text-gray-500" />
+                      <Label htmlFor="bank_transfer" className="cursor-pointer font-medium text-gray-700">
                         Bank Transfer
                       </Label>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
                       <RadioGroupItem value="esewa" id="esewa" />
-                      <Label htmlFor="esewa" className="cursor-pointer">
+                      <Smartphone className="h-4 w-4 text-gray-500" />
+                      <Label htmlFor="esewa" className="cursor-pointer font-medium text-gray-700">
                         eSewa
                       </Label>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
                       <RadioGroupItem value="khalti" id="khalti" />
-                      <Label htmlFor="khalti" className="cursor-pointer">
+                      <Smartphone className="h-4 w-4 text-gray-500" />
+                      <Label htmlFor="khalti" className="cursor-pointer font-medium text-gray-700">
                         Khalti
                       </Label>
                     </div>
                   </RadioGroup>
                 </div>
 
-                <Tabs value={formData.method} className="mt-4">
-                  <TabsContent value="bank_transfer" className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="bankName">Bank Name</Label>
-                      <Select value={formData.accountDetails.bankName} onValueChange={handleBankChange}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select bank" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="nepal_investment_bank">Nepal Investment Bank</SelectItem>
-                          <SelectItem value="nabil_bank">Nabil Bank</SelectItem>
-                          <SelectItem value="everest_bank">Everest Bank</SelectItem>
-                          <SelectItem value="global_ime_bank">Global IME Bank</SelectItem>
-                          <SelectItem value="nmb_bank">NMB Bank</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
+                <Tabs value={formData.method} className="mt-6">
+                  <TabsContent value="bank_transfer" className="space-y-4 mt-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="bankName" className="text-gray-700">
+                          Bank Name
+                        </Label>
+                        <Select value={formData.accountDetails.bankName} onValueChange={handleBankChange}>
+                          <SelectTrigger className="border-gray-300 focus:border-blue-500 focus:ring-blue-500">
+                            <SelectValue placeholder="Select bank" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="nepal_investment_bank">Nepal Investment Bank</SelectItem>
+                            <SelectItem value="nabil_bank">Nabil Bank</SelectItem>
+                            <SelectItem value="everest_bank">Everest Bank</SelectItem>
+                            <SelectItem value="global_ime_bank">Global IME Bank</SelectItem>
+                            <SelectItem value="nmb_bank">NMB Bank</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="accountName" className="text-gray-700">
+                          Account Holder Name
+                        </Label>
+                        <Input
+                          id="accountName"
+                          name="accountDetails.accountName"
+                          value={formData.accountDetails.accountName || ""}
+                          onChange={handleInputChange}
+                          placeholder="Enter account holder name"
+                          className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                          required={formData.method === "bank_transfer"}
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="accountName">Account Holder Name</Label>
-                      <Input
-                        id="accountName"
-                        name="accountDetails.accountName"
-                        value={formData.accountDetails.accountName || ""}
-                        onChange={handleInputChange}
-                        placeholder="Enter account holder name"
-                        required={formData.method === "bank_transfer"}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="accountNumber">Account Number</Label>
-                      <Input
-                        id="accountNumber"
-                        name="accountDetails.accountNumber"
-                        value={formData.accountDetails.accountNumber || ""}
-                        onChange={handleInputChange}
-                        placeholder="Enter account number"
-                        required={formData.method === "bank_transfer"}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="branch">Branch</Label>
-                      <Input
-                        id="branch"
-                        name="accountDetails.branch"
-                        value={formData.accountDetails.branch || ""}
-                        onChange={handleInputChange}
-                        placeholder="Enter branch name (optional)"
-                      />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="accountNumber" className="text-gray-700">
+                          Account Number
+                        </Label>
+                        <Input
+                          id="accountNumber"
+                          name="accountDetails.accountNumber"
+                          value={formData.accountDetails.accountNumber || ""}
+                          onChange={handleInputChange}
+                          placeholder="Enter account number"
+                          className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                          required={formData.method === "bank_transfer"}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="branch" className="text-gray-700">
+                          Branch (Optional)
+                        </Label>
+                        <Input
+                          id="branch"
+                          name="accountDetails.branch"
+                          value={formData.accountDetails.branch || ""}
+                          onChange={handleInputChange}
+                          placeholder="Enter branch name"
+                          className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                        />
+                      </div>
                     </div>
                   </TabsContent>
 
-                  <TabsContent value="esewa" className="space-y-4">
+                  <TabsContent value="esewa" className="space-y-4 mt-4">
                     <div className="space-y-2">
-                      <Label htmlFor="phoneNumber">eSewa Registered Phone Number</Label>
+                      <Label htmlFor="phoneNumber" className="text-gray-700">
+                        eSewa Registered Phone Number
+                      </Label>
                       <Input
                         id="phoneNumber"
                         name="accountDetails.phoneNumber"
                         value={formData.accountDetails.phoneNumber || ""}
                         onChange={handleInputChange}
                         placeholder="Enter phone number"
+                        className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                         required={formData.method === "esewa"}
                       />
                     </div>
                   </TabsContent>
 
-                  <TabsContent value="khalti" className="space-y-4">
+                  <TabsContent value="khalti" className="space-y-4 mt-4">
                     <div className="space-y-2">
-                      <Label htmlFor="phoneNumber">Khalti Registered Phone Number</Label>
+                      <Label htmlFor="phoneNumber" className="text-gray-700">
+                        Khalti Registered Phone Number
+                      </Label>
                       <Input
                         id="phoneNumber"
                         name="accountDetails.phoneNumber"
                         value={formData.accountDetails.phoneNumber || ""}
                         onChange={handleInputChange}
                         placeholder="Enter phone number"
+                        className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                         required={formData.method === "khalti"}
                       />
                     </div>
                   </TabsContent>
                 </Tabs>
               </CardContent>
-              <CardFooter className="flex justify-between">
+              <CardFooter className="bg-gray-50 border-t border-gray-100 flex justify-between">
                 <Button variant="outline" type="button" onClick={() => router.back()}>
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   disabled={submitting || earningsSummary.available < 100 || kycStatus.status !== "approved"}
+                  className="bg-blue-600 hover:bg-blue-700"
                 >
                   {submitting ? "Processing..." : "Submit Withdrawal Request"}
                 </Button>

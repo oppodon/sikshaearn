@@ -57,7 +57,7 @@ export function MobileNav() {
       >
         <div className="flex items-center justify-between border-b p-4">
           <Link href="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
-            <span className="text-xl font-bold text-blue-600 dark:text-blue-400">Knowledge Hub Nepal</span>
+            <span className="text-xl font-bold text-blue-600 dark:text-blue-400">Siksha Earn</span>
           </Link>
           <Button variant="ghost" size="icon" onClick={() => setOpen(false)}>
             <X className="h-5 w-5" />
