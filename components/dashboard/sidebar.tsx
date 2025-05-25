@@ -84,11 +84,7 @@ export function DashboardSidebar() {
           href: "/dashboard/leaderboard",
           isActive: pathname === "/dashboard/leaderboard",
         },
-        {
-          title: "Marketing Material",
-          href: "/dashboard/marketing-material",
-          isActive: pathname === "/dashboard/marketing-material",
-        },
+  
       ],
     },
     {

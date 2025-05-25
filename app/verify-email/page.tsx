@@ -64,12 +64,12 @@ export default function VerifyEmailPage() {
             <div className="relative h-10 w-10">
               <Image
                 src="/placeholder.svg?height=40&width=40"
-                alt="Knowledge Hub Nepal Logo"
+                alt="Siksha Earn Nepal Logo"
                 fill
                 className="object-contain"
               />
             </div>
-            <span className="text-xl font-bold text-blue-600">Knowledge Hub Nepal</span>
+            <span className="text-xl font-bold text-blue-600">Siksha Earn Nepal</span>
           </Link>
           <h1 className="text-2xl font-bold">Email Verification</h1>
         </div>

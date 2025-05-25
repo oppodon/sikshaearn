@@ -48,7 +48,7 @@ export function DashboardHeader() {
             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
               <span className="text-lg font-bold text-white">K</span>
             </div>
-            <span className="font-semibold text-lg">Knowledge Hub</span>
+            <span className="font-semibold text-lg">Siksha Earn</span>
           </Link>
 
           {/* Search */}

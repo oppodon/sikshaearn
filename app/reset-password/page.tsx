@@ -99,12 +99,12 @@ export default function ResetPasswordPage() {
               <div className="relative h-10 w-10">
                 <Image
                   src="/placeholder.svg?height=40&width=40"
-                  alt="Knowledge Hub Nepal Logo"
+                  alt="Siksha Earn Logo"
                   fill
                   className="object-contain"
                 />
               </div>
-              <span className="text-xl font-bold text-blue-600">Knowledge Hub Nepal</span>
+              <span className="text-xl font-bold text-blue-600">Siksha Earn</span>
             </Link>
             <h1 className="text-2xl font-bold">Reset Password</h1>
           </div>
@@ -134,12 +134,12 @@ export default function ResetPasswordPage() {
             <div className="relative h-10 w-10">
               <Image
                 src="/placeholder.svg?height=40&width=40"
-                alt="Knowledge Hub Nepal Logo"
+                alt="Siksha Earn Logo"
                 fill
                 className="object-contain"
               />
             </div>
-            <span className="text-xl font-bold text-blue-600">Knowledge Hub Nepal</span>
+            <span className="text-xl font-bold text-blue-600">Siksha Earn</span>
           </Link>
           <h1 className="text-2xl font-bold">Reset your password</h1>
           <p className="text-sm text-gray-500">Enter your new password below</p>

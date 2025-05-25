@@ -602,75 +602,7 @@ export default function ProfilePage() {
               </CardContent>
             </Card>
 
-            <Card className="shadow-xl border-0 bg-white/90 backdrop-blur-sm">
-              <CardHeader className="bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-t-lg">
-                <CardTitle className="flex items-center gap-2">
-                  <Mail className="h-5 w-5" />
-                  Email Notifications
-                </CardTitle>
-                <CardDescription className="text-green-100">Manage your email notification preferences</CardDescription>
-              </CardHeader>
-              <CardContent className="p-6 space-y-6">
-                <div className="flex items-center justify-between p-4 rounded-lg bg-gradient-to-br from-blue-50 to-indigo-100 border border-blue-200">
-                  <div>
-                    <h4 className="font-medium text-blue-900">Course Updates</h4>
-                    <p className="text-sm text-blue-700">Receive notifications about course updates and new content</p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Label htmlFor="course-updates" className="sr-only">
-                      Course Updates
-                    </Label>
-                    <input
-                      type="checkbox"
-                      id="course-updates"
-                      className="h-4 w-4 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
-                      defaultChecked
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between p-4 rounded-lg bg-gradient-to-br from-purple-50 to-violet-100 border border-purple-200">
-                  <div>
-                    <h4 className="font-medium text-purple-900">Affiliate Earnings</h4>
-                    <p className="text-sm text-purple-700">Receive notifications about new affiliate earnings</p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Label htmlFor="affiliate-earnings" className="sr-only">
-                      Affiliate Earnings
-                    </Label>
-                    <input
-                      type="checkbox"
-                      id="affiliate-earnings"
-                      className="h-4 w-4 rounded border-purple-300 text-purple-600 focus:ring-purple-500"
-                      defaultChecked
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between p-4 rounded-lg bg-gradient-to-br from-orange-50 to-amber-100 border border-orange-200">
-                  <div>
-                    <h4 className="font-medium text-orange-900">Marketing Updates</h4>
-                    <p className="text-sm text-orange-700">Receive marketing emails and special offers</p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Label htmlFor="marketing-updates" className="sr-only">
-                      Marketing Updates
-                    </Label>
-                    <input
-                      type="checkbox"
-                      id="marketing-updates"
-                      className="h-4 w-4 rounded border-orange-300 text-orange-600 focus:ring-orange-500"
-                      defaultChecked={false}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter className="bg-gradient-to-r from-gray-50 to-green-50 border-t border-gray-200 rounded-b-lg">
-                <Button className="ml-auto bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-lg transform hover:scale-105 transition-all duration-300">
-                  Save Preferences
-                </Button>
-              </CardFooter>
-            </Card>
+       
           </TabsContent>
 
           <TabsContent value="security" className="space-y-6">

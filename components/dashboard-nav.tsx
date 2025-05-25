@@ -248,7 +248,7 @@ export function DashboardNav() {
               <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
                 <span className="text-lg font-bold text-white">K</span>
               </div>
-              <span className="font-semibold text-lg">Knowledge Hub</span>
+              <span className="font-semibold text-lg">Siksha Earn</span>
             </div>
           </div>
           <ScrollArea className="h-[calc(100vh-5rem)] pb-10">

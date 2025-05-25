@@ -35,7 +35,7 @@ export default function SettingsPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="site-name">Site Name</Label>
-                  <Input id="site-name" defaultValue="Knowledge Hub Nepal" />
+                  <Input id="site-name" defaultValue="Siksha Earn" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="site-url">Site URL</Label>
@@ -47,7 +47,7 @@ export default function SettingsPage() {
                 <Label htmlFor="site-description">Site Description</Label>
                 <Textarea
                   id="site-description"
-                  defaultValue="Knowledge Hub Nepal is a premier e-learning platform offering high-quality courses on digital marketing, communication skills, and personal development."
+                  defaultValue="Siksha Earn is a premier e-learning platform offering high-quality courses on digital marketing, communication skills, and personal development."
                   rows={3}
                 />
               </div>
@@ -298,7 +298,7 @@ export default function SettingsPage() {
                 <Textarea
                   id="template-welcome"
                   rows={4}
-                  defaultValue="Welcome to Knowledge Hub Nepal! We're excited to have you join our community of learners..."
+                  defaultValue="Welcome to Siksha Earn! We're excited to have you join our community of learners..."
                 />
               </div>
 

@@ -111,7 +111,7 @@ export default function AffiliateLinksPage() {
       <Tabs defaultValue="general" className="w-full">
         <TabsList className="grid w-full grid-cols-3 mb-8">
           <TabsTrigger value="general">General Link</TabsTrigger>
-          <TabsTrigger value="products">Product Links</TabsTrigger>
+          
           <TabsTrigger value="marketing">Marketing Materials</TabsTrigger>
         </TabsList>
 
@@ -175,118 +175,13 @@ export default function AffiliateLinksPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="products">
-          <Card>
-            <CardHeader>
-              <CardTitle>Product-Specific Affiliate Links</CardTitle>
-              <CardDescription>Create links for specific products to track your promotions better</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {productLinks.map((product, index) => (
-                  <div key={index} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor={`product-link-${index}`}>{product.name}</Label>
-                      <span className="text-sm text-muted-foreground">Commission: 65%</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <Input
-                        id={`product-link-${index}`}
-                        value={`${baseUrl}/packages/${product.slug}?ref=${referralCode}`}
-                        readOnly
-                        className="flex-1"
-                      />
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => copyToClipboard(`${baseUrl}/packages/${product.slug}?ref=${referralCode}`)}
-                      >
-                        <Copy className="h-4 w-4" />
-                        <span className="sr-only">Copy</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => window.open(`/packages/${product.slug}`, "_blank")}
-                      >
-                        <Share2 className="h-4 w-4" />
-                        <span className="sr-only">View</span>
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="marketing">
-          <Card>
-            <CardHeader>
-              <CardTitle>Marketing Materials</CardTitle>
-              <CardDescription>Download and use these materials to promote Siksha earn</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {marketingMaterials.map((material, index) => (
-                    <Card key={index}>
-                      <CardContent className="p-4">
-                        <div className="aspect-video bg-muted rounded-md flex items-center justify-center mb-4">
-                          {material.type === "banner" ? (
-                            <div className="text-center p-4 w-full h-full flex items-center justify-center bg-primary/10">
-                              <span className="text-sm">Banner Preview</span>
-                            </div>
-                          ) : (
-                            <div className="text-center p-4 w-full h-full flex items-center justify-center bg-primary/10">
-                              <span className="text-sm">{material.type} Preview</span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="font-medium">{material.name}</h3>
-                            <p className="text-sm text-muted-foreground">{material.dimensions}</p>
-                          </div>
-                          <Button variant="outline" size="sm">
-                            Download
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+    
       </Tabs>
     </div>
   )
 }
 
-const productLinks = [
-  {
-    name: "Digital Marketing Mastery",
-    slug: "digital-marketing-mastery",
-    price: 4999,
-  },
-  {
-    name: "Advanced JavaScript Course",
-    slug: "advanced-javascript",
-    price: 3999,
-  },
-  {
-    name: "UI/UX Design Fundamentals",
-    slug: "ui-ux-design-fundamentals",
-    price: 4499,
-  },
-  {
-    name: "Python for Data Science",
-    slug: "python-for-data-science",
-    price: 5999,
-  },
-]
+
 
 const marketingMaterials = [
   {

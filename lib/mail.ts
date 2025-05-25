@@ -38,7 +38,7 @@ export const sendVerificationEmail = async (email: string, token: string) => {
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Verify Your Email - Knowledge Hub Nepal</title>
+      <title>Verify Your Email - Siksha Earn</title>
       <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
@@ -51,11 +51,11 @@ export const sendVerificationEmail = async (email: string, token: string) => {
     <body>
       <div class="container">
         <div class="header">
-          <h1>Welcome to Knowledge Hub Nepal!</h1>
+          <h1>Welcome to Siksha Earn!</h1>
         </div>
         <div class="content">
           <h2>Verify Your Email Address</h2>
-          <p>Thank you for registering with Knowledge Hub Nepal. To complete your registration and start learning, please verify your email address by clicking the button below:</p>
+          <p>Thank you for registering with Siksha Earn. To complete your registration and start learning, please verify your email address by clicking the button below:</p>
           
           <div style="text-align: center;">
             <a href="${verificationUrl}" class="button">Verify Email Address</a>
@@ -68,17 +68,17 @@ export const sendVerificationEmail = async (email: string, token: string) => {
           
           <p>If you didn't create an account with us, please ignore this email.</p>
           
-          <p>Best regards,<br>The Knowledge Hub Nepal Team</p>
+          <p>Best regards,<br>The Siksha Earn Team</p>
         </div>
         <div class="footer">
-          <p>© 2024 Knowledge Hub Nepal. All rights reserved.</p>
+          <p>© 2024 Siksha Earn. All rights reserved.</p>
         </div>
       </div>
     </body>
     </html>
   `
 
-  return await sendEmail(email, "Verify Your Email - Knowledge Hub Nepal", html)
+  return await sendEmail(email, "Verify Your Email - Siksha Earn", html)
 }
 
 export const sendPasswordResetEmail = async (email: string, token: string) => {
@@ -89,7 +89,7 @@ export const sendPasswordResetEmail = async (email: string, token: string) => {
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Reset Your Password - Knowledge Hub Nepal</title>
+      <title>Reset Your Password - Siksha Earn</title>
       <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
@@ -106,7 +106,7 @@ export const sendPasswordResetEmail = async (email: string, token: string) => {
         </div>
         <div class="content">
           <h2>Reset Your Password</h2>
-          <p>We received a request to reset your password for your Knowledge Hub Nepal account. Click the button below to create a new password:</p>
+          <p>We received a request to reset your password for your Siksha Earn account. Click the button below to create a new password:</p>
           
           <div style="text-align: center;">
             <a href="${resetUrl}" class="button">Reset Password</a>
@@ -119,15 +119,15 @@ export const sendPasswordResetEmail = async (email: string, token: string) => {
           
           <p>If you didn't request a password reset, please ignore this email. Your password will remain unchanged.</p>
           
-          <p>Best regards,<br>The Knowledge Hub Nepal Team</p>
+          <p>Best regards,<br>The Siksha Earn Team</p>
         </div>
         <div class="footer">
-          <p>© 2024 Knowledge Hub Nepal. All rights reserved.</p>
+          <p>© 2024 Siksha Earn. All rights reserved.</p>
         </div>
       </div>
     </body>
     </html>
   `
 
-  return await sendEmail(email, "Reset Your Password - Knowledge Hub Nepal", html)
+  return await sendEmail(email, "Reset Your Password - Siksha Earn", html)
 }

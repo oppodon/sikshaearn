@@ -11,7 +11,7 @@ export function DashboardFooter() {
               <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
                 <span className="text-lg font-bold text-white">K</span>
               </div>
-              <span className="font-semibold text-lg">Knowledge Hub</span>
+              <span className="font-semibold text-lg">Siksha Earn</span>
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Empowering learners with quality education and skills for a better future.
@@ -134,7 +134,7 @@ export function DashboardFooter() {
               </li>
               <li className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                 <Mail className="h-4 w-4" />
-                <span>support@knowledgehub.np</span>
+                <span>support@sikshaearn.np</span>
               </li>
             </ul>
           </div>
