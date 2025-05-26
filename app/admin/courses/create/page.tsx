@@ -33,7 +33,6 @@ export default function CreateCoursePage() {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    instructor: "",
     thumbnail: "",
   })
 
@@ -114,7 +113,6 @@ export default function CreateCoursePage() {
       const courseData = {
         title: formData.title,
         description: formData.description,
-        instructor: formData.instructor,
         thumbnail: formData.thumbnail || "/placeholder.svg?height=200&width=300",
         videoLessons: validLessons,
         packages: selectedPackages,
@@ -173,20 +171,6 @@ export default function CreateCoursePage() {
                 value={formData.title}
                 onChange={handleChange}
                 placeholder="Enter course title"
-                required
-              />
-            </div>
-
-            <div className="mb-6">
-              <Label htmlFor="instructor" className="block mb-2">
-                Instructor
-              </Label>
-              <Input
-                id="instructor"
-                name="instructor"
-                value={formData.instructor}
-                onChange={handleChange}
-                placeholder="Enter instructor name"
                 required
               />
             </div>

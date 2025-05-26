@@ -43,14 +43,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { slug: stri
       return NextResponse.json({ error: "Course not found" }, { status: 404 })
     }
 
-    // Process instructor data
-    if (data.instructor && typeof data.instructor === "object") {
-      if (!data.instructor.name) {
-        // If instructor is an object but name is empty, use a default string
-        data.instructor = "Instructor"
-      }
-    }
-
     // Process video lessons
     if (data.videoLessons) {
       data.videoLessons.forEach((lesson: any) => {
@@ -86,8 +78,10 @@ export async function DELETE(req: NextRequest, { params }: { params: { slug: str
     await connectToDatabase()
     // Await params in Next.js 15
     const { slug } = await params
+    
 
-    const result = await Course.deleteOne({ slug })
+    const result = await Course.findByIdAndDelete(slug)
+    console.log(result)
 
     if (result.deletedCount === 0) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 })

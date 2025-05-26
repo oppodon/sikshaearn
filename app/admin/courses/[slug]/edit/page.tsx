@@ -102,11 +102,6 @@ export default function EditCoursePage({ params }: { params: { slug: string } })
     level: "beginner",
     status: "draft",
     featured: false,
-    instructor: {
-      name: "",
-      title: "",
-      bio: "",
-    },
     tags: [""],
   })
 
@@ -152,11 +147,6 @@ export default function EditCoursePage({ params }: { params: { slug: string } })
           level: course.level || "beginner",
           status: course.status || "draft",
           featured: course.featured || false,
-          instructor: {
-            name: course.instructor?.name || "",
-            title: course.instructor?.title || "",
-            bio: course.instructor?.bio || "",
-          },
           tags: course.tags?.length ? course.tags : [""],
         })
 
@@ -195,17 +185,6 @@ export default function EditCoursePage({ params }: { params: { slug: string } })
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
-  }
-
-  const handleInstructorChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      instructor: {
-        ...prev.instructor,
-        [name]: value,
-      },
-    }))
   }
 
   const handleSelectChange = (name: string, value: string) => {
@@ -604,51 +583,6 @@ export default function EditCoursePage({ params }: { params: { slug: string } })
                       Add Tag
                     </Button>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Instructor Information</CardTitle>
-                <CardDescription>Edit the instructor details</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="instructor.name">Instructor Name</Label>
-                  <Input
-                    id="instructor.name"
-                    name="name"
-                    value={formData.instructor.name}
-                    onChange={handleInstructorChange}
-                    placeholder="e.g. Rajesh Sharma"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="instructor.title">Instructor Title</Label>
-                  <Input
-                    id="instructor.title"
-                    name="title"
-                    value={formData.instructor.title}
-                    onChange={handleInstructorChange}
-                    placeholder="e.g. Digital Marketing Expert"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="instructor.bio">Instructor Bio</Label>
-                  <Textarea
-                    id="instructor.bio"
-                    name="bio"
-                    value={formData.instructor.bio}
-                    onChange={handleInstructorChange}
-                    placeholder="Brief biography of the instructor"
-                    rows={3}
-                    required
-                  />
                 </div>
               </CardContent>
             </Card>

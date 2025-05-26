@@ -45,11 +45,7 @@ export async function GET(request: Request) {
     }
 
     if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
-        { instructor: { $regex: search, $options: "i" } },
-      ]
+      query.$or = [{ title: { $regex: search, $options: "i" } }, { description: { $regex: search, $options: "i" } }]
     }
 
     if (packageId) {
@@ -141,13 +137,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "A course with this title already exists" }, { status: 400 })
     }
 
-    // Process instructor data
-    let instructorData = data.instructor
-    if (typeof instructorData === "object" && !instructorData.name) {
-      // If instructor is an object but name is empty, use a default string
-      instructorData = "Instructor"
-    }
-
     // Process video lessons
     const videoLessons = data.videoLessons || []
     videoLessons.forEach((lesson: any) => {
@@ -167,7 +156,6 @@ export async function POST(request: Request) {
         title: data.title,
         slug,
         description: data.description,
-        instructor: instructorData,
         thumbnail: data.thumbnail || "/placeholder.svg?height=200&width=300",
         videoLessons: videoLessons,
         status: data.status || "draft",

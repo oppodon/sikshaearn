@@ -27,7 +27,6 @@ interface Course {
   title: string
   slug: string
   description: string
-  instructor: string
   thumbnail: string
   status: string
   enrollmentCount?: number
@@ -273,7 +272,6 @@ export default function CoursesPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Course</TableHead>
-                        <TableHead>Instructor</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Enrollments</TableHead>
                         <TableHead>Packages</TableHead>
@@ -297,7 +295,6 @@ export default function CoursesPage() {
                               <div className="font-medium">{course.title}</div>
                             </div>
                           </TableCell>
-                          <TableCell>{course.instructor}</TableCell>
                           <TableCell>{getStatusBadge(course.status)}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">

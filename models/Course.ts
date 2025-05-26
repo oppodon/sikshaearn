@@ -6,14 +6,6 @@ export interface ICourse extends Document {
   description: string
   thumbnail: string
   price: number
-  instructor:
-    | string
-    | {
-        name: string
-        title: string
-        bio: string
-        avatar?: string
-      }
   duration: string
   level: string
   language: string
@@ -67,10 +59,6 @@ const CourseSchema = new Schema(
     price: {
       type: Number,
       default: 0, // Make price optional with default 0
-    },
-    instructor: {
-      type: Schema.Types.Mixed, // Allow string or object
-      required: [true, "Instructor name is required"],
     },
     duration: {
       type: String,
