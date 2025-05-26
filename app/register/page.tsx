@@ -3,7 +3,6 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { signIn } from "next-auth/react"
 import { z } from "zod"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -12,7 +11,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Checkbox } from "@/components/ui/checkbox"
-import { FcGoogle } from "react-icons/fc"
 import { Eye, EyeOff, Loader2, Sparkles, ArrowLeft, CheckCircle } from "lucide-react"
 import Image from "next/image"
 
@@ -93,10 +91,6 @@ export default function RegisterPage() {
     } finally {
       setIsLoading(false)
     }
-  }
-
-  const handleGoogleSignIn = () => {
-    signIn("google", { callbackUrl: "/dashboard" })
   }
 
   const benefits = [
@@ -335,28 +329,6 @@ export default function RegisterPage() {
                 </Button>
               </form>
             </Form>
-
-            <div className="mt-5 sm:mt-6">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-200"></div>
-                </div>
-                <div className="relative flex justify-center text-xs sm:text-sm">
-                  <span className="bg-white px-2 sm:px-4 text-gray-500">Or continue with</span>
-                </div>
-              </div>
-
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full mt-4 h-10 sm:h-12 border-gray-200 hover:bg-gray-50 rounded-lg sm:rounded-xl text-sm sm:text-base"
-                onClick={handleGoogleSignIn}
-                disabled={isLoading}
-              >
-                <FcGoogle className="mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5" />
-                Continue with Google
-              </Button>
-            </div>
 
             <p className="mt-6 sm:mt-8 text-center text-xs sm:text-sm text-gray-600">
               Already have an account?{" "}
