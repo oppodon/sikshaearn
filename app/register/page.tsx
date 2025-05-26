@@ -82,11 +82,12 @@ export default function RegisterPage() {
         throw new Error(result.error || "Failed to register")
       }
 
-      setSuccess("Registration successful! Please check your email to verify your account.")
+      setSuccess("Registration successful! Redirecting to login...")
 
+      // Redirect to login after 2 seconds
       setTimeout(() => {
-        router.push("/verify-email?email=" + encodeURIComponent(data.email))
-      }, 3000)
+        router.push("/login")
+      }, 2000)
     } catch (error: any) {
       setError(error.message || "An unexpected error occurred")
     } finally {
@@ -363,27 +364,6 @@ export default function RegisterPage() {
                 Sign in
               </Link>
             </p>
-          </div>
-
-          {/* Mobile Benefits (visible only on small screens) */}
-          <div className="lg:hidden bg-white rounded-xl shadow-lg border border-gray-100 p-4 sm:p-6">
-            <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4 text-center">What you'll get:</h3>
-            <div className="space-y-2 sm:space-y-3">
-              {benefits.map((benefit, index) => (
-                <div key={index} className="flex items-center space-x-3">
-                  <div className="w-5 h-5 sm:w-6 sm:h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 text-blue-600" />
-                  </div>
-                  <span className="text-xs sm:text-sm text-gray-700">{benefit}</span>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg">
-              <div className="text-center">
-                <div className="text-lg sm:text-xl font-bold text-gray-900 mb-1">Start Free</div>
-                <div className="text-xs sm:text-sm text-gray-600">No credit card required</div>
-              </div>
-            </div>
           </div>
         </div>
       </div>

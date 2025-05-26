@@ -11,11 +11,6 @@ export interface IUser extends mongoose.Document {
   country?: string
   city?: string
   phone?: string
-  emailVerified?: Date
-  verificationToken?: string
-  verificationTokenExpiry?: Date
-  resetPasswordToken?: string
-  resetPasswordTokenExpiry?: Date
   role: "user" | "instructor" | "admin"
   status: "active" | "banned" | "pending"
   referralCode?: string
@@ -53,7 +48,6 @@ const UserSchema = new mongoose.Schema<IUser>(
     password: {
       type: String,
       required: function () {
-        // Only require password if provider is not set (i.e., local auth)
         return !this.provider
       },
       minlength: [8, "Password must be at least 8 characters"],
@@ -90,13 +84,6 @@ const UserSchema = new mongoose.Schema<IUser>(
       type: String,
       trim: true,
     },
-    emailVerified: {
-      type: Date,
-    },
-    verificationToken: String,
-    verificationTokenExpiry: Date,
-    resetPasswordToken: String,
-    resetPasswordTokenExpiry: Date,
     role: {
       type: String,
       enum: ["user", "instructor", "admin"],
@@ -105,7 +92,7 @@ const UserSchema = new mongoose.Schema<IUser>(
     status: {
       type: String,
       enum: ["active", "banned", "pending"],
-      default: "active", // Set default to active for OAuth users
+      default: "active",
     },
     referralCode: {
       type: String,
@@ -144,7 +131,6 @@ const UserSchema = new mongoose.Schema<IUser>(
 
 // Hash password before saving
 UserSchema.pre("save", async function (next) {
-  // Only hash the password if it's modified and exists
   if (!this.isModified("password") || !this.password) return next()
 
   try {
@@ -162,7 +148,6 @@ UserSchema.methods.comparePassword = async function (candidatePassword: string):
   return bcrypt.compare(candidatePassword, this.password)
 }
 
-// Prevent mongoose from creating a new model if it already exists
 const User = mongoose.models.User || mongoose.model<IUser>("User", UserSchema)
 
 export default User

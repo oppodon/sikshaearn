@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useSession } from "next-auth/react"
 import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -13,7 +12,9 @@ import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/components/ui/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import {
   ArrowLeft,
   CheckCircle,
@@ -21,14 +22,20 @@ import {
   Info,
   Users,
   CreditCard,
-  FileText,
   Upload,
   Clock,
   Shield,
   ArrowRight,
-  Gift,
   Check,
   X,
+  User,
+  Mail,
+  MapPin,
+  Eye,
+  EyeOff,
+  Sparkles,
+  Phone,
+  Home,
 } from "lucide-react"
 
 interface Package {
@@ -56,21 +63,49 @@ interface ReferralData {
   }
 }
 
-type CheckoutStep = "review" | "payment" | "confirmation"
+interface UserFormData {
+  firstName: string
+  lastName: string
+  email: string
+  password: string
+  confirmPassword: string
+  phone: string
+  country: string
+  city: string
+  address: string
+  agreeToTerms: boolean
+}
+
+type CheckoutStep = "personal" | "account" | "address" | "payment" | "confirmation"
 
 export default function CheckoutPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { data: session, status } = useSession()
   const { toast } = useToast()
 
-  const [currentStep, setCurrentStep] = useState<CheckoutStep>("review")
+  const [currentStep, setCurrentStep] = useState<CheckoutStep>("personal")
   const [isLoading, setIsLoading] = useState(true)
   const [packageData, setPackageData] = useState<Package | null>(null)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [transactionId, setTransactionId] = useState<string | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+
+  // Form data
+  const [userFormData, setUserFormData] = useState<UserFormData>({
+    firstName: "",
+    lastName: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    phone: "",
+    country: "",
+    city: "",
+    address: "",
+    agreeToTerms: false,
+  })
 
   // Referral system states
   const [referralCode, setReferralCode] = useState("")
@@ -79,9 +114,11 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
   const [appliedReferral, setAppliedReferral] = useState<string | null>(null)
 
   const steps = [
-    { id: "review", title: "Review Order", icon: FileText },
-    { id: "payment", title: "Payment Method", icon: CreditCard },
-    { id: "confirmation", title: "Confirmation", icon: CheckCircle },
+    { id: "personal", title: "Personal", subtitle: "Basic info", icon: User, color: "bg-blue-500" },
+    { id: "account", title: "Account", subtitle: "Login details", icon: Mail, color: "bg-purple-500" },
+    { id: "address", title: "Address", subtitle: "Location", icon: MapPin, color: "bg-green-500" },
+    { id: "payment", title: "Payment", subtitle: "Method", icon: CreditCard, color: "bg-orange-500" },
+    { id: "confirmation", title: "Done", subtitle: "Complete", icon: CheckCircle, color: "bg-emerald-500" },
   ]
 
   const currentStepIndex = steps.findIndex((step) => step.id === currentStep)
@@ -96,11 +133,6 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
   }, [searchParams])
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push(`/login?callbackUrl=${encodeURIComponent(`/packages/${params.id}/checkout`)}`)
-      return
-    }
-
     const fetchData = async () => {
       try {
         setIsLoading(true)
@@ -135,10 +167,8 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
       }
     }
 
-    if (status === "authenticated") {
-      fetchData()
-    }
-  }, [params.id, router, status, toast])
+    fetchData()
+  }, [params.id, toast])
 
   const validateReferralCode = async (code: string) => {
     if (!code.trim()) {
@@ -184,6 +214,59 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
     }
   }
 
+  const updateFormData = (field: keyof UserFormData, value: string | boolean) => {
+    setUserFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }))
+  }
+
+  const validateCurrentStep = () => {
+    switch (currentStep) {
+      case "personal":
+        return userFormData.firstName && userFormData.lastName && userFormData.phone
+      case "account":
+        return (
+          userFormData.email &&
+          userFormData.password &&
+          userFormData.confirmPassword &&
+          userFormData.password === userFormData.confirmPassword &&
+          userFormData.password.length >= 8
+        )
+      case "address":
+        return userFormData.country && userFormData.city && userFormData.address
+      case "payment":
+        return selectedPaymentMethod
+      default:
+        return true
+    }
+  }
+
+  const handleNextStep = () => {
+    if (!validateCurrentStep()) {
+      toast({
+        title: "Please fill all required fields",
+        description: "Complete the current step before proceeding.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const stepOrder: CheckoutStep[] = ["personal", "account", "address", "payment", "confirmation"]
+    const currentIndex = stepOrder.indexOf(currentStep)
+    if (currentIndex < stepOrder.length - 1) {
+      setCurrentStep(stepOrder[currentIndex + 1])
+    }
+  }
+
+  const handlePreviousStep = () => {
+    const stepOrder: CheckoutStep[] = ["personal", "account", "address", "payment", "confirmation"]
+    const currentIndex = stepOrder.indexOf(currentStep)
+    if (currentIndex > 0) {
+      setCurrentStep(stepOrder[currentIndex - 1])
+    }
+  }
+
   const handleCreateOrder = async () => {
     if (!packageData || !selectedPaymentMethod) {
       toast({
@@ -194,39 +277,73 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
       return
     }
 
+    if (!userFormData.agreeToTerms) {
+      toast({
+        title: "Terms and Conditions",
+        description: "Please agree to the terms and conditions to proceed.",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       setIsSubmitting(true)
 
+      // First, register the user
+      const registerResponse = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: `${userFormData.firstName} ${userFormData.lastName}`,
+          email: userFormData.email,
+          password: userFormData.password,
+          phone: userFormData.phone,
+          country: userFormData.country,
+          city: userFormData.city,
+          address: userFormData.address,
+          referralCode: appliedReferral,
+        }),
+      })
+
+      const registerResult = await registerResponse.json()
+
+      if (!registerResponse.ok) {
+        throw new Error(registerResult.error || "Failed to create account")
+      }
+
+      // Then create the transaction
       const formData = new FormData()
       formData.append("packageId", packageData._id)
       formData.append("amount", packageData.price.toString())
       formData.append("paymentMethodId", selectedPaymentMethod)
+      formData.append("userEmail", userFormData.email)
 
-      // Add referral code if applied
       if (appliedReferral) {
         formData.append("referralCode", appliedReferral)
       }
 
-      const response = await fetch("/api/transactions", {
+      const transactionResponse = await fetch("/api/transactions", {
         method: "POST",
         body: formData,
       })
 
-      const data = await response.json()
+      const transactionData = await transactionResponse.json()
 
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to create transaction")
+      if (!transactionResponse.ok) {
+        throw new Error(transactionData.error || "Failed to create transaction")
       }
 
-      setTransactionId(data.transaction._id)
+      setTransactionId(transactionData.transaction._id)
       setCurrentStep("confirmation")
 
       toast({
-        title: "Order Created Successfully!",
+        title: "Account Created & Order Placed!",
         description: "Please complete your payment using the instructions below.",
       })
     } catch (error: any) {
-      console.error("Error creating transaction:", error)
+      console.error("Error creating order:", error)
       toast({
         title: "Order Creation Failed",
         description: error.message || "Failed to create order. Please try again.",
@@ -239,20 +356,20 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
 
   const selectedMethod = paymentMethods.find((method) => method._id === selectedPaymentMethod)
 
-  if (status === "loading" || isLoading) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="container max-w-6xl mx-auto py-8 px-4">
-          <div className="flex items-center gap-2 mb-8">
-            <Skeleton className="h-10 w-10" />
-            <Skeleton className="h-8 w-64" />
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+        <div className="container max-w-7xl mx-auto py-4 px-4 sm:py-8">
+          <div className="flex items-center gap-2 mb-6">
+            <Skeleton className="h-8 w-8 sm:h-10 sm:w-10" />
+            <Skeleton className="h-6 w-48 sm:h-8 sm:w-64" />
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
             <div className="lg:col-span-2">
-              <Skeleton className="h-96 w-full" />
+              <Skeleton className="h-64 sm:h-96 w-full" />
             </div>
             <div>
-              <Skeleton className="h-64 w-full" />
+              <Skeleton className="h-48 sm:h-64 w-full" />
             </div>
           </div>
         </div>
@@ -262,8 +379,8 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
 
   if (!packageData) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="container max-w-4xl mx-auto py-12 px-4">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+        <div className="container max-w-4xl mx-auto py-8 px-4 sm:py-12">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
@@ -280,52 +397,95 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="container max-w-6xl mx-auto py-8 px-4">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <Button variant="outline" size="icon" asChild className="rounded-full">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <div className="container max-w-7xl mx-auto py-4 px-4 sm:py-8">
+        {/* Mobile Header */}
+        <div className="flex items-center gap-3 mb-6 sm:gap-4 sm:mb-8">
+          <Button variant="outline" size="icon" asChild className="rounded-full h-8 w-8 sm:h-10 sm:w-10">
             <Link href={`/packages/${params.id}`}>
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4" />
             </Link>
           </Button>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Checkout</h1>
-            <p className="text-gray-600 dark:text-gray-300">Complete your purchase securely</p>
+            <h1 className="text-xl font-bold text-gray-900 sm:text-2xl lg:text-3xl">Secure Checkout</h1>
+            <p className="text-sm text-gray-600 sm:text-base">Complete your purchase and create your account</p>
           </div>
         </div>
 
-        {/* Progress Steps */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
+        {/* Mobile Progress Steps */}
+        <div className="mb-6 sm:mb-8">
+          {/* Mobile: Horizontal scroll */}
+          <div className="block sm:hidden">
+            <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide">
+              {steps.map((step, index) => {
+                const StepIcon = step.icon
+                const isActive = index <= currentStepIndex
+                const isCurrent = index === currentStepIndex
+                const isCompleted = index < currentStepIndex
+
+                return (
+                  <div key={step.id} className="flex flex-col items-center min-w-[80px]">
+                    <div
+                      className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all mb-2 ${
+                        isCompleted
+                          ? "bg-green-500 border-green-500 text-white"
+                          : isActive
+                            ? `${step.color} border-transparent text-white`
+                            : "bg-white border-gray-300 text-gray-400"
+                      }`}
+                    >
+                      {isCompleted ? <Check className="h-5 w-5" /> : <StepIcon className="h-5 w-5" />}
+                    </div>
+                    <div className="text-center">
+                      <p className={`text-xs font-medium ${isCurrent ? "text-gray-900" : "text-gray-500"}`}>
+                        {step.title}
+                      </p>
+                      <p className="text-xs text-gray-400">{step.subtitle}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Desktop: Full width */}
+          <div className="hidden sm:flex items-center justify-between">
             {steps.map((step, index) => {
               const StepIcon = step.icon
               const isActive = index <= currentStepIndex
               const isCurrent = index === currentStepIndex
+              const isCompleted = index < currentStepIndex
 
               return (
                 <div key={step.id} className="flex items-center flex-1">
-                  <div className="flex items-center">
+                  <div className="flex flex-col items-center">
                     <div
-                      className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all ${
-                        isActive
-                          ? "bg-gray-900 border-gray-900 text-white dark:bg-white dark:border-white dark:text-gray-900"
-                          : "bg-white border-gray-300 text-gray-400 dark:bg-gray-800 dark:border-gray-600"
+                      className={`flex items-center justify-center w-12 h-12 rounded-full border-2 transition-all ${
+                        isCompleted
+                          ? "bg-green-500 border-green-500 text-white"
+                          : isActive
+                            ? `${step.color} border-transparent text-white`
+                            : "bg-white border-gray-300 text-gray-400"
                       }`}
                     >
-                      <StepIcon className="h-5 w-5" />
+                      {isCompleted ? <Check className="h-6 w-6" /> : <StepIcon className="h-6 w-6" />}
                     </div>
-                    <div className="ml-3">
-                      <p
-                        className={`text-sm font-medium ${isCurrent ? "text-gray-900 dark:text-white" : "text-gray-500"}`}
-                      >
+                    <div className="mt-2 text-center">
+                      <p className={`text-sm font-medium ${isCurrent ? "text-gray-900" : "text-gray-500"}`}>
                         {step.title}
                       </p>
+                      <p className="text-xs text-gray-400">{step.subtitle}</p>
                     </div>
                   </div>
                   {index < steps.length - 1 && (
                     <div
-                      className={`flex-1 h-0.5 mx-4 ${index < currentStepIndex ? "bg-gray-900 dark:bg-white" : "bg-gray-300 dark:bg-gray-600"}`}
+                      className={`flex-1 h-0.5 mx-4 mt-6 ${
+                        index < currentStepIndex
+                          ? "bg-green-500"
+                          : index === currentStepIndex
+                            ? step.color.replace("bg-", "bg-")
+                            : "bg-gray-300"
+                      }`}
                     />
                   )}
                 </div>
@@ -334,290 +494,505 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2">
-            {currentStep === "review" && (
-              <div className="space-y-6">
-                {/* Package Details */}
-                <Card className="shadow-sm border border-gray-200 dark:border-gray-700">
-                  <CardHeader className="border-b border-gray-200 dark:border-gray-700">
-                    <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
-                      <FileText className="h-5 w-5" />
-                      Package Details
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    <div className="flex flex-col md:flex-row gap-6">
-                      <div className="relative w-full md:w-48 h-32 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
-                        <Image
-                          src={packageData.thumbnail || "/placeholder.svg?height=128&width=192"}
-                          alt={packageData.title}
-                          fill
-                          className="object-cover"
+            <Card className="shadow-lg border-0 bg-white/90 backdrop-blur-sm">
+              <CardHeader className={`${steps[currentStepIndex]?.color || "bg-blue-600"} text-white rounded-t-lg`}>
+                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                  <Sparkles className="h-5 w-5 sm:h-6 sm:w-6" />
+                  {currentStep === "personal" && "Personal Information"}
+                  {currentStep === "account" && "Account Setup"}
+                  {currentStep === "address" && "Address Information"}
+                  {currentStep === "payment" && "Payment Method"}
+                  {currentStep === "confirmation" && "Order Confirmation"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 sm:p-6 lg:p-8">
+                {/* Personal Information Step */}
+                {currentStep === "personal" && (
+                  <div className="space-y-4 sm:space-y-6">
+                    <div className="text-center mb-4 sm:mb-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Let's get to know you!</h3>
+                      <p className="text-sm sm:text-base text-gray-600">
+                        We'll need some basic information to get started.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                      <div>
+                        <Label htmlFor="firstName" className="text-sm font-semibold text-gray-700">
+                          First Name *
+                        </Label>
+                        <Input
+                          id="firstName"
+                          placeholder="Enter your first name"
+                          value={userFormData.firstName}
+                          onChange={(e) => updateFormData("firstName", e.target.value)}
+                          className="mt-1 h-11 sm:h-12"
+                          required
                         />
                       </div>
-                      <div className="flex-1">
-                        <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">
-                          {packageData.title}
-                        </h3>
-                        <p className="text-gray-600 dark:text-gray-300 mb-4">{packageData.description}</p>
-                        <div className="flex items-center gap-4">
-                          <Badge variant="outline" className="flex items-center gap-1">
-                            <Users className="h-3.5 w-3.5" />
-                            {packageData.courses?.length || 0} Courses
-                          </Badge>
-                          <Badge variant="outline" className="flex items-center gap-1">
-                            <Clock className="h-3.5 w-3.5" />
-                            Lifetime Access
-                          </Badge>
-                        </div>
+                      <div>
+                        <Label htmlFor="lastName" className="text-sm font-semibold text-gray-700">
+                          Last Name *
+                        </Label>
+                        <Input
+                          id="lastName"
+                          placeholder="Enter your last name"
+                          value={userFormData.lastName}
+                          onChange={(e) => updateFormData("lastName", e.target.value)}
+                          className="mt-1 h-11 sm:h-12"
+                          required
+                        />
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
 
-                {/* Referral Code */}
-                <Card className="shadow-sm border border-gray-200 dark:border-gray-700">
-                  <CardHeader className="border-b border-gray-200 dark:border-gray-700">
-                    <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
-                      <Gift className="h-5 w-5" />
-                      Referral Code (Optional)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="referralCode" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Enter referral code to support your referrer
-                        </Label>
-                        <div className="mt-1 relative">
-                          <Input
-                            id="referralCode"
-                            type="text"
-                            value={referralCode}
-                            onChange={(e) => handleReferralCodeChange(e.target.value)}
-                            placeholder="Enter referral code"
-                            className="pr-10"
-                            disabled={isValidatingReferral}
-                          />
-                          {isValidatingReferral && (
-                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
-                            </div>
-                          )}
-                          {referralData?.isValid && (
-                            <Check className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-600" />
-                          )}
-                          {referralData?.isValid === false && (
-                            <X className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-red-600" />
-                          )}
-                        </div>
+                    <div>
+                      <Label htmlFor="phone" className="text-sm font-semibold text-gray-700">
+                        Phone Number *
+                      </Label>
+                      <div className="relative mt-1">
+                        <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Input
+                          id="phone"
+                          type="tel"
+                          placeholder="Enter your phone number"
+                          value={userFormData.phone}
+                          onChange={(e) => updateFormData("phone", e.target.value)}
+                          className="pl-10 h-11 sm:h-12"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {/* Referral Code */}
+                    <div>
+                      <Label htmlFor="referralCode" className="text-sm font-semibold text-gray-700">
+                        Referral Code (Optional)
+                      </Label>
+                      <div className="mt-1 relative">
+                        <Input
+                          id="referralCode"
+                          type="text"
+                          value={referralCode}
+                          onChange={(e) => handleReferralCodeChange(e.target.value)}
+                          placeholder="Enter referral code"
+                          className="pr-10 h-11 sm:h-12"
+                          disabled={isValidatingReferral}
+                        />
+                        {isValidatingReferral && (
+                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                          </div>
+                        )}
+                        {referralData?.isValid && (
+                          <Check className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-600" />
+                        )}
+                        {referralData?.isValid === false && (
+                          <X className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-red-600" />
+                        )}
                       </div>
 
                       {referralData?.isValid && referralData.referrer && (
-                        <Alert className="border-green-200 bg-green-50 dark:bg-green-950/20">
+                        <Alert className="border-green-200 bg-green-50 mt-2">
                           <CheckCircle className="h-4 w-4 text-green-600" />
-                          <AlertDescription className="text-green-800 dark:text-green-200">
+                          <AlertDescription className="text-green-800 text-sm">
                             Valid referral code! You're being referred by <strong>{referralData.referrer.name}</strong>
                           </AlertDescription>
                         </Alert>
                       )}
 
                       {referralData?.isValid === false && (
-                        <Alert variant="destructive">
+                        <Alert variant="destructive" className="mt-2">
                           <AlertCircle className="h-4 w-4" />
-                          <AlertDescription>Invalid referral code. Please check and try again.</AlertDescription>
+                          <AlertDescription className="text-sm">
+                            Invalid referral code. Please check and try again.
+                          </AlertDescription>
                         </Alert>
                       )}
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                )}
 
-                <Button
-                  onClick={() => setCurrentStep("payment")}
-                  className="w-full bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
-                >
-                  Continue to Payment
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
-            )}
-
-            {currentStep === "payment" && (
-              <Card className="shadow-sm border border-gray-200 dark:border-gray-700">
-                <CardHeader className="border-b border-gray-200 dark:border-gray-700">
-                  <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
-                    <CreditCard className="h-5 w-5" />
-                    Payment Method
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6">
-                  {paymentMethods.length > 0 ? (
-                    <div className="space-y-4">
-                      {paymentMethods.map((method) => (
-                        <div
-                          key={method._id}
-                          className={`relative rounded-lg border-2 p-4 cursor-pointer transition-all hover:shadow-sm ${
-                            selectedPaymentMethod === method._id
-                              ? "border-gray-900 bg-gray-50 dark:border-white dark:bg-gray-800"
-                              : "border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600"
-                          }`}
-                          onClick={() => setSelectedPaymentMethod(method._id)}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                                selectedPaymentMethod === method._id
-                                  ? "border-gray-900 dark:border-white"
-                                  : "border-gray-400"
-                              }`}
-                            >
-                              {selectedPaymentMethod === method._id && (
-                                <div className="w-2.5 h-2.5 rounded-full bg-gray-900 dark:bg-white" />
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <CreditCard className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                              <span className="font-medium text-gray-900 dark:text-white">{method.name}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                {/* Account Setup Step */}
+                {currentStep === "account" && (
+                  <div className="space-y-4 sm:space-y-6">
+                    <div className="text-center mb-4 sm:mb-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Create Your Account</h3>
+                      <p className="text-sm sm:text-base text-gray-600">
+                        Set up your login credentials to access your courses.
+                      </p>
                     </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                      <p className="text-gray-500">No payment methods available.</p>
-                    </div>
-                  )}
-                </CardContent>
-                <CardFooter className="border-t border-gray-200 dark:border-gray-700 p-6 flex gap-3">
-                  <Button variant="outline" onClick={() => setCurrentStep("review")} className="flex-1">
-                    Back
-                  </Button>
-                  <Button
-                    onClick={handleCreateOrder}
-                    disabled={isSubmitting || !selectedPaymentMethod}
-                    className="flex-1 bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
-                  >
-                    {isSubmitting ? "Creating Order..." : "Create Order"}
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </CardFooter>
-              </Card>
-            )}
 
-            {currentStep === "confirmation" && selectedMethod && (
-              <Card className="shadow-sm border border-gray-200 dark:border-gray-700">
-                <CardHeader className="border-b border-gray-200 dark:border-gray-700">
-                  <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
-                    <CheckCircle className="h-5 w-5" />
-                    Payment Instructions
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6 space-y-6">
-                  <Alert className="border-green-200 bg-green-50 dark:bg-green-950/20">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <AlertDescription className="text-green-800 dark:text-green-200">
-                      Order created successfully! Complete the payment to access your courses.
-                    </AlertDescription>
-                  </Alert>
-
-                  <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6">
-                    <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
-                      Pay via {selectedMethod.name}
-                    </h3>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                      <div className="order-2 md:order-1">
-                        <div className="prose dark:prose-invert max-w-none">
-                          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">{selectedMethod.instructions}</p>
-                        </div>
-
-                        <div className="bg-white dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                          <h4 className="font-medium mb-2 text-gray-900 dark:text-white">Next Steps:</h4>
-                          <ol className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
-                            <li>1. Complete the payment using the QR code</li>
-                            <li>2. Upload payment proof on the next page</li>
-                            <li>3. Wait for verification (usually within 24 hours)</li>
-                            <li>4. Access your courses once approved</li>
-                          </ol>
-                        </div>
+                    <div>
+                      <Label htmlFor="email" className="text-sm font-semibold text-gray-700">
+                        Email Address *
+                      </Label>
+                      <div className="relative mt-1">
+                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Input
+                          id="email"
+                          type="email"
+                          placeholder="Enter your email address"
+                          value={userFormData.email}
+                          onChange={(e) => updateFormData("email", e.target.value)}
+                          className="pl-10 h-11 sm:h-12"
+                          required
+                        />
                       </div>
+                    </div>
 
-                      <div className="order-1 md:order-2 flex justify-center">
-                        <div className="relative w-48 h-48 bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-                          <Image
-                            src={selectedMethod.qrCodeUrl || "/placeholder.svg"}
-                            alt={`${selectedMethod.name} QR Code`}
-                            fill
-                            className="object-contain p-2"
-                          />
-                        </div>
+                    <div>
+                      <Label htmlFor="password" className="text-sm font-semibold text-gray-700">
+                        Password *
+                      </Label>
+                      <div className="relative mt-1">
+                        <Input
+                          id="password"
+                          type={showPassword ? "text" : "password"}
+                          placeholder="Create a strong password"
+                          value={userFormData.password}
+                          onChange={(e) => updateFormData("password", e.target.value)}
+                          className="pr-12 h-11 sm:h-12"
+                          required
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-11 sm:h-12 px-3 hover:bg-transparent"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Password must be at least 8 characters long</p>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="confirmPassword" className="text-sm font-semibold text-gray-700">
+                        Confirm Password *
+                      </Label>
+                      <div className="relative mt-1">
+                        <Input
+                          id="confirmPassword"
+                          type={showConfirmPassword ? "text" : "password"}
+                          placeholder="Confirm your password"
+                          value={userFormData.confirmPassword}
+                          onChange={(e) => updateFormData("confirmPassword", e.target.value)}
+                          className="pr-12 h-11 sm:h-12"
+                          required
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-11 sm:h-12 px-3 hover:bg-transparent"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        >
+                          {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                      {userFormData.password &&
+                        userFormData.confirmPassword &&
+                        userFormData.password !== userFormData.confirmPassword && (
+                          <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
+                        )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Address Step */}
+                {currentStep === "address" && (
+                  <div className="space-y-4 sm:space-y-6">
+                    <div className="text-center mb-4 sm:mb-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Where are you located?</h3>
+                      <p className="text-sm sm:text-base text-gray-600">
+                        Help us serve you better with your location details.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                      <div>
+                        <Label htmlFor="country" className="text-sm font-semibold text-gray-700">
+                          Country *
+                        </Label>
+                        <Select
+                          value={userFormData.country}
+                          onValueChange={(value) => updateFormData("country", value)}
+                        >
+                          <SelectTrigger className="mt-1 h-11 sm:h-12">
+                            <SelectValue placeholder="Select your country" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="nepal">Nepal</SelectItem>
+                            <SelectItem value="india">India</SelectItem>
+                            <SelectItem value="usa">United States</SelectItem>
+                            <SelectItem value="uk">United Kingdom</SelectItem>
+                            <SelectItem value="canada">Canada</SelectItem>
+                            <SelectItem value="australia">Australia</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="city" className="text-sm font-semibold text-gray-700">
+                          City *
+                        </Label>
+                        <Input
+                          id="city"
+                          placeholder="Enter your city"
+                          value={userFormData.city}
+                          onChange={(e) => updateFormData("city", e.target.value)}
+                          className="mt-1 h-11 sm:h-12"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="address" className="text-sm font-semibold text-gray-700">
+                        Address *
+                      </Label>
+                      <div className="relative mt-1">
+                        <Home className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <Textarea
+                          id="address"
+                          placeholder="Enter your full address"
+                          value={userFormData.address}
+                          onChange={(e) => updateFormData("address", e.target.value)}
+                          className="pl-10 min-h-[80px] sm:min-h-[100px]"
+                          required
+                        />
                       </div>
                     </div>
                   </div>
+                )}
 
-                  <Alert>
-                    <Info className="h-4 w-4" />
-                    <AlertDescription>
-                      After payment, upload proof to complete your purchase. Courses will be available after
-                      verification.
-                    </AlertDescription>
-                  </Alert>
-                </CardContent>
-                <CardFooter className="border-t border-gray-200 dark:border-gray-700 p-6">
+                {/* Payment Step */}
+                {currentStep === "payment" && (
+                  <div className="space-y-4 sm:space-y-6">
+                    <div className="text-center mb-4 sm:mb-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Choose Payment Method</h3>
+                      <p className="text-sm sm:text-base text-gray-600">
+                        Select your preferred payment method to complete the purchase.
+                      </p>
+                    </div>
+
+                    {paymentMethods.length > 0 ? (
+                      <div className="space-y-3 sm:space-y-4">
+                        {paymentMethods.map((method) => (
+                          <div
+                            key={method._id}
+                            className={`relative rounded-xl border-2 p-4 sm:p-6 cursor-pointer transition-all hover:shadow-md ${
+                              selectedPaymentMethod === method._id
+                                ? "border-blue-500 bg-blue-50"
+                                : "border-gray-200 hover:border-gray-300"
+                            }`}
+                            onClick={() => setSelectedPaymentMethod(method._id)}
+                          >
+                            <div className="flex items-center gap-3 sm:gap-4">
+                              <div
+                                className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 flex items-center justify-center ${
+                                  selectedPaymentMethod === method._id ? "border-blue-500" : "border-gray-400"
+                                }`}
+                              >
+                                {selectedPaymentMethod === method._id && (
+                                  <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-blue-500" />
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 sm:gap-3">
+                                <CreditCard className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600" />
+                                <span className="font-semibold text-gray-900 text-base sm:text-lg">{method.name}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                        <p className="text-gray-500">No payment methods available.</p>
+                      </div>
+                    )}
+
+                    <div className="flex items-start space-x-2">
+                      <Checkbox
+                        id="terms"
+                        checked={userFormData.agreeToTerms}
+                        onCheckedChange={(checked) => updateFormData("agreeToTerms", checked as boolean)}
+                      />
+                      <div className="grid gap-1.5 leading-none">
+                        <Label
+                          htmlFor="terms"
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          I agree to the{" "}
+                          <Link href="/terms" className="text-blue-600 hover:underline">
+                            Terms of Service
+                          </Link>{" "}
+                          and{" "}
+                          <Link href="/privacy" className="text-blue-600 hover:underline">
+                            Privacy Policy
+                          </Link>
+                        </Label>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Confirmation Step */}
+                {currentStep === "confirmation" && selectedMethod && (
+                  <div className="space-y-4 sm:space-y-6">
+                    <Alert className="border-green-200 bg-green-50">
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <AlertDescription className="text-green-800 text-sm sm:text-base">
+                        Account created and order placed successfully! Complete the payment to access your courses.
+                      </AlertDescription>
+                    </Alert>
+
+                    <div className="bg-gray-50 rounded-xl p-4 sm:p-6">
+                      <h3 className="text-lg font-semibold mb-4 text-gray-900">Pay via {selectedMethod.name}</h3>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 items-center">
+                        <div className="order-2 md:order-1">
+                          <div className="prose max-w-none">
+                            <p className="text-sm text-gray-600 mb-4">{selectedMethod.instructions}</p>
+                          </div>
+
+                          <div className="bg-white rounded-lg p-3 sm:p-4 border border-gray-200">
+                            <h4 className="font-medium mb-2 text-gray-900 text-sm sm:text-base">Next Steps:</h4>
+                            <ol className="text-xs sm:text-sm text-gray-600 space-y-1">
+                              <li>1. Complete the payment using the QR code</li>
+                              <li>2. Upload payment proof on the next page</li>
+                              <li>3. Wait for verification (usually within 24 hours)</li>
+                              <li>4. Access your courses once approved</li>
+                            </ol>
+                          </div>
+                        </div>
+
+                        <div className="order-1 md:order-2 flex justify-center">
+                          <div className="relative w-40 h-40 sm:w-48 sm:h-48 bg-white rounded-lg p-3 sm:p-4 shadow-sm border border-gray-200">
+                            <Image
+                              src={selectedMethod.qrCodeUrl || "/placeholder.svg"}
+                              alt={`${selectedMethod.name} QR Code`}
+                              fill
+                              className="object-contain p-2"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertDescription className="text-sm sm:text-base">
+                        After payment, upload proof to complete your purchase. Courses will be available after
+                        verification.
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                )}
+              </CardContent>
+              <CardFooter className="border-t border-gray-200 p-4 sm:p-6 flex flex-col sm:flex-row gap-3">
+                {currentStep !== "personal" && currentStep !== "confirmation" && (
+                  <Button variant="outline" onClick={handlePreviousStep} className="w-full sm:flex-1 h-11 sm:h-12">
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Previous
+                  </Button>
+                )}
+                {currentStep !== "confirmation" && (
+                  <Button
+                    onClick={currentStep === "payment" ? handleCreateOrder : handleNextStep}
+                    disabled={!validateCurrentStep() || isSubmitting}
+                    className="w-full sm:flex-1 h-11 sm:h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                  >
+                    {isSubmitting ? (
+                      "Creating Account..."
+                    ) : currentStep === "payment" ? (
+                      "Create Account & Order"
+                    ) : (
+                      <>
+                        Next
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </>
+                    )}
+                  </Button>
+                )}
+                {currentStep === "confirmation" && (
                   <Button
                     asChild
-                    className="w-full bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+                    className="w-full h-11 sm:h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
                   >
                     <Link href={`/payment/confirmation/${transactionId}`}>
                       <Upload className="mr-2 h-4 w-4" />
                       Upload Payment Proof
                     </Link>
                   </Button>
-                </CardFooter>
-              </Card>
-            )}
+                )}
+              </CardFooter>
+            </Card>
           </div>
 
           {/* Order Summary Sidebar */}
           <div>
-            <Card className="sticky top-8 shadow-sm border border-gray-200 dark:border-gray-700">
-              <CardHeader className="border-b border-gray-200 dark:border-gray-700">
-                <CardTitle className="text-gray-900 dark:text-white">Order Summary</CardTitle>
+            <Card className="sticky top-4 sm:top-8 shadow-lg border-0 bg-white/90 backdrop-blur-sm">
+              <CardHeader className="bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-t-lg">
+                <CardTitle className="text-lg sm:text-xl">📋 Order Summary</CardTitle>
               </CardHeader>
-              <CardContent className="p-6">
-                <div className="space-y-4">
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
+                  <div className="relative w-12 h-12 sm:w-16 sm:h-16 rounded-lg overflow-hidden bg-gradient-to-br from-blue-100 to-purple-100">
+                    <Image
+                      src={packageData.thumbnail || "/placeholder.svg?height=64&width=64"}
+                      alt={packageData.title}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-gray-900 text-sm sm:text-base truncate">{packageData.title}</h3>
+                    <p className="text-xs sm:text-sm text-gray-500">
+                      {packageData.courses?.length || 0} courses included
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 sm:space-y-4">
                   <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">Package Price:</span>
-                    <span className="font-semibold text-gray-900 dark:text-white">₹{packageData.price.toFixed(2)}</span>
+                    <span className="text-gray-600 text-sm sm:text-base">Package Price:</span>
+                    <span className="font-semibold text-gray-900 text-sm sm:text-base">
+                      ₹{packageData.price.toFixed(2)}
+                    </span>
                   </div>
                   {appliedReferral && (
                     <div className="flex justify-between text-green-600">
-                      <span>Referral Applied:</span>
-                      <span className="font-medium">{appliedReferral}</span>
+                      <span className="text-sm sm:text-base">Referral Applied:</span>
+                      <span className="font-medium text-sm sm:text-base">{appliedReferral}</span>
                     </div>
                   )}
                   <Separator />
                   <div className="flex justify-between text-lg font-bold">
-                    <span className="text-gray-900 dark:text-white">Total:</span>
-                    <span className="text-gray-900 dark:text-white">₹{packageData.price.toFixed(2)}</span>
+                    <span className="text-gray-900">Total:</span>
+                    <span className="text-blue-600">₹{packageData.price.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 sm:mt-6 space-y-3 sm:space-y-4">
+                  <div className="flex items-center gap-2 text-gray-600 bg-gray-50 p-2 sm:p-3 rounded-lg">
+                    <Shield className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium">Secure Checkout</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-gray-600 bg-gray-50 p-2 sm:p-3 rounded-lg">
+                    <Clock className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium">Lifetime Access</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-gray-600 bg-gray-50 p-2 sm:p-3 rounded-lg">
+                    <Users className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium">Expert Support</span>
                   </div>
                 </div>
               </CardContent>
-              <CardFooter className="p-6 pt-0">
-                <div className="w-full space-y-4">
-                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                    <Shield className="h-4 w-4" />
-                    <span className="text-sm font-medium">Secure Checkout</span>
-                  </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-                    By completing this purchase, you agree to our Terms of Service and Privacy Policy.
-                  </p>
-                </div>
-              </CardFooter>
             </Card>
           </div>
         </div>

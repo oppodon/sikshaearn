@@ -27,7 +27,39 @@ import {
   Calendar,
   Star,
   Coins,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react"
+
+// Counter Animation Hook
+function useCounter(end: number, duration = 2000, start = 0) {
+  const [count, setCount] = useState(start)
+
+  useEffect(() => {
+    if (end === 0) {
+      setCount(0)
+      return
+    }
+
+    let startTime: number
+    const animate = (currentTime: number) => {
+      if (!startTime) startTime = currentTime
+      const progress = Math.min((currentTime - startTime) / duration, 1)
+
+      // Easing function for smooth animation
+      const easeOutQuart = 1 - Math.pow(1 - progress, 4)
+      setCount(Math.floor(start + (end - start) * easeOutQuart))
+
+      if (progress < 1) {
+        requestAnimationFrame(animate)
+      }
+    }
+
+    requestAnimationFrame(animate)
+  }, [end, duration, start])
+
+  return count
+}
 
 // Modern animated background with network pattern
 function ModernAnimatedBackground() {
@@ -58,8 +90,18 @@ function ModernAnimatedBackground() {
 
 // Modern Profile Header Card
 function ModernProfileHeader({ user }: { user: any }) {
+  const [memberSince, setMemberSince] = useState("Jan 2024")
+
+  useEffect(() => {
+    if (user?.createdAt) {
+      const date = new Date(user.createdAt)
+      const monthYear = date.toLocaleDateString("en-US", { month: "short", year: "numeric" })
+      setMemberSince(monthYear)
+    }
+  }, [user])
+
   return (
-    <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 text-white shadow-2xl">
+    <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 text-white shadow-2xl h-40">
       {/* Network pattern background */}
       <div className="absolute inset-0 opacity-20">
         <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
@@ -91,40 +133,40 @@ function ModernProfileHeader({ user }: { user: any }) {
         ))}
       </div>
 
-      <CardContent className="p-8 relative z-10">
+      <CardContent className="p-6 relative z-10">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-white/10 rounded-full blur-lg"></div>
-              <Avatar className="h-20 w-20 border-4 border-white/30 shadow-2xl relative z-10">
-                <AvatarImage src={user?.image || "/placeholder.svg?height=80&width=80"} alt={user?.name} />
-                <AvatarFallback className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-2xl font-bold">
+              <Avatar className="h-16 w-16 border-4 border-white/30 shadow-2xl relative z-10">
+                <AvatarImage src={user?.image || "/placeholder.svg?height=64&width=64"} alt={user?.name} />
+                <AvatarFallback className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-xl font-bold">
                   {user?.name?.charAt(0) || "U"}
                 </AvatarFallback>
               </Avatar>
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full border-2 border-white flex items-center justify-center">
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full border-2 border-white flex items-center justify-center">
                 <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
               </div>
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-white mb-2">{user?.name || "User"}</h1>
-              <Badge className="bg-gradient-to-r from-cyan-400 to-blue-500 text-white border-0 px-4 py-2 text-sm font-semibold shadow-lg">
-                <Crown className="h-4 w-4 mr-2" />
+              <h1 className="text-2xl font-bold text-white mb-1">{user?.name || "User"}</h1>
+              <Badge className="bg-gradient-to-r from-cyan-400 to-blue-500 text-white border-0 px-3 py-1 text-xs font-semibold shadow-lg">
+                <Crown className="h-3 w-3 mr-1" />
                 Pro Package
               </Badge>
             </div>
           </div>
-          <div className="hidden md:flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-3">
             <div className="text-right">
-              <p className="text-white/80 text-sm">Member Since</p>
-              <p className="text-white font-semibold">Jan 2024</p>
+              <p className="text-white/80 text-xs">Member Since</p>
+              <p className="text-white font-semibold text-sm">{memberSince}</p>
             </div>
-            <div className="w-px h-12 bg-white/20"></div>
+            <div className="w-px h-8 bg-white/20"></div>
             <div className="text-right">
-              <p className="text-white/80 text-sm">Status</p>
-              <div className="flex items-center gap-2">
+              <p className="text-white/80 text-xs">Status</p>
+              <div className="flex items-center gap-1">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <p className="text-white font-semibold">Active</p>
+                <p className="text-white font-semibold text-sm">Active</p>
               </div>
             </div>
           </div>
@@ -134,21 +176,26 @@ function ModernProfileHeader({ user }: { user: any }) {
   )
 }
 
-// Modern Earnings Card
+// Modern Compact Earnings Card with Counter
 function ModernEarningsCard({
   title,
   amount,
   icon,
   gradient,
   delay = 0,
+  trend = "+12%",
+  trendUp = true,
 }: {
   title: string
   amount: number
   icon: React.ReactNode
   gradient: string
   delay?: number
+  trend?: string
+  trendUp?: boolean
 }) {
   const [isVisible, setIsVisible] = useState(false)
+  const animatedAmount = useCounter(isVisible ? amount : 0, 2000)
 
   useEffect(() => {
     const timer = setTimeout(() => setIsVisible(true), delay)
@@ -157,14 +204,14 @@ function ModernEarningsCard({
 
   return (
     <Card
-      className={`group relative overflow-hidden border-0 bg-gradient-to-br ${gradient} text-white shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:scale-105 hover:-translate-y-2 cursor-pointer ${
+      className={`group relative overflow-hidden border-0 bg-gradient-to-br ${gradient} text-white shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:scale-105 cursor-pointer h-32 ${
         isVisible ? "animate-fade-in-up" : "opacity-0"
       }`}
     >
       {/* Animated background pattern */}
       <div className="absolute inset-0 opacity-10">
         <div className="absolute inset-0 bg-gradient-to-r from-white/5 to-transparent"></div>
-        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl transform translate-x-8 -translate-y-8 group-hover:scale-150 transition-transform duration-700"></div>
+        <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-2xl transform translate-x-6 -translate-y-6 group-hover:scale-150 transition-transform duration-700"></div>
       </div>
 
       {/* Floating sparkles */}
@@ -182,31 +229,29 @@ function ModernEarningsCard({
         ))}
       </div>
 
-      <CardContent className="p-6 relative z-10">
-        <div className="flex items-center justify-between mb-4">
-          <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm shadow-lg group-hover:bg-white/30 transition-all duration-300 group-hover:scale-110 group-hover:rotate-12">
-            <div className="text-white transform transition-transform duration-300">{icon}</div>
+      <CardContent className="p-4 relative z-10 h-full flex flex-col justify-between">
+        <div className="flex items-center justify-between">
+          <div className="p-2 rounded-lg bg-white/20 backdrop-blur-sm shadow-lg group-hover:bg-white/30 transition-all duration-300 group-hover:scale-110">
+            <div className="text-white transform transition-transform duration-300 text-sm">{icon}</div>
           </div>
-          <div className="text-right">
-            <div className="flex items-center gap-1 text-white/80 text-xs">
-              <TrendingUp className="h-3 w-3" />
-              <span>+12%</span>
-            </div>
+          <div className="flex items-center gap-1 text-white/90 text-xs">
+            {trendUp ? <ArrowUp className="h-3 w-3 text-green-300" /> : <ArrowDown className="h-3 w-3 text-red-300" />}
+            <span className={trendUp ? "text-green-300" : "text-red-300"}>{trend}</span>
           </div>
         </div>
 
-        <div className="space-y-2">
-          <p className="text-white/90 text-sm font-medium">{title}</p>
-          <div className="flex items-center gap-2">
-            <span className="text-white/80 text-lg">₹</span>
-            <span className="text-3xl font-bold text-white group-hover:scale-105 transition-transform duration-300">
-              {amount.toLocaleString()}
+        <div className="space-y-1">
+          <p className="text-white/90 text-xs font-medium">{title}</p>
+          <div className="flex items-center gap-1">
+            <span className="text-white/80 text-sm">₹</span>
+            <span className="text-xl font-bold text-white group-hover:scale-105 transition-transform duration-300">
+              {animatedAmount.toLocaleString()}
             </span>
           </div>
         </div>
 
         {/* Progress indicator */}
-        <div className="mt-4 h-1 bg-white/20 rounded-full overflow-hidden">
+        <div className="h-1 bg-white/20 rounded-full overflow-hidden">
           <div
             className="h-full bg-gradient-to-r from-white/60 to-white/80 rounded-full transition-all duration-1000 ease-out"
             style={{ width: isVisible ? "75%" : "0%" }}
@@ -345,12 +390,12 @@ function ModernCourseCard({ course }: { course: any }) {
 // Loading skeleton
 function ModernLoadingSkeleton() {
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Profile header skeleton */}
-      <div className="h-32 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 rounded-2xl animate-pulse"></div>
+      <div className="h-40 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 rounded-2xl animate-pulse"></div>
 
       {/* Earnings cards skeleton */}
-      <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {[1, 2, 3, 4, 5].map((i) => (
           <div
             key={i}
@@ -380,18 +425,84 @@ export default function ModernDashboardPage() {
   const { data: session, status } = useSession()
   const [enrolledCourses, setEnrolledCourses] = useState([])
   const [userStats, setUserStats] = useState({
-    todayEarning: 6625,
-    last7DaysEarning: 32475,
-    last30DaysEarning: 102245,
-    allTimeEarning: 183186,
-    pendingEarning: 3425,
+    todayEarning: 0,
+    last7DaysEarning: 0,
+    last30DaysEarning: 0,
+    allTimeEarning: 0,
+    pendingEarning: 0,
   })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (status === "authenticated") {
-      // Simulate API calls
-      setTimeout(() => {
+      fetchUserStats()
+      fetchEnrolledCourses()
+    }
+  }, [status])
+
+  const fetchUserStats = async () => {
+    try {
+      // Fetch affiliate stats
+      const affiliateResponse = await fetch("/api/affiliate/stats")
+      if (affiliateResponse.ok) {
+        const affiliateData = await affiliateResponse.json()
+
+        // Fetch balance transactions for earnings breakdown
+        const transactionsResponse = await fetch("/api/user/balance/transactions")
+        if (transactionsResponse.ok) {
+          const transactionsData = await transactionsResponse.json()
+
+          // Calculate earnings by time period
+          const now = new Date()
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+          const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+          const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+          const todayEarning =
+            transactionsData.transactions
+              ?.filter((tx: any) => new Date(tx.createdAt) >= today && tx.type === "credit")
+              ?.reduce((sum: number, tx: any) => sum + (tx.amount || 0), 0) || 0
+
+          const last7DaysEarning =
+            transactionsData.transactions
+              ?.filter((tx: any) => new Date(tx.createdAt) >= last7Days && tx.type === "credit")
+              ?.reduce((sum: number, tx: any) => sum + (tx.amount || 0), 0) || 0
+
+          const last30DaysEarning =
+            transactionsData.transactions
+              ?.filter((tx: any) => new Date(tx.createdAt) >= last30Days && tx.type === "credit")
+              ?.reduce((sum: number, tx: any) => sum + (tx.amount || 0), 0) || 0
+
+          setUserStats({
+            todayEarning,
+            last7DaysEarning,
+            last30DaysEarning,
+            allTimeEarning: affiliateData.totalEarnings || 0,
+            pendingEarning: affiliateData.pendingBalance || 0,
+          })
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching user stats:", error)
+      // Fallback to demo data if API fails
+      setUserStats({
+        todayEarning: 3250,
+        last7DaysEarning: 18750,
+        last30DaysEarning: 67500,
+        allTimeEarning: 125000,
+        pendingEarning: 4200,
+      })
+    }
+  }
+
+  const fetchEnrolledCourses = async () => {
+    try {
+      const response = await fetch("/api/courses/enrolled")
+      if (response.ok) {
+        const data = await response.json()
+        setEnrolledCourses(data.courses || [])
+      } else {
+        // Fallback to demo data if API fails
         setEnrolledCourses([
           {
             _id: "1",
@@ -422,16 +533,36 @@ export default function ModernDashboardPage() {
             packageName: "Marketing Pro Bundle",
           },
         ])
-        setLoading(false)
-      }, 1500)
+      }
+    } catch (error) {
+      console.error("Error fetching enrolled courses:", error)
+      // Fallback to demo data if API fails
+      setEnrolledCourses([
+        {
+          _id: "1",
+          title: "Advanced React Development Masterclass",
+          thumbnail: "/placeholder.svg?height=200&width=400",
+          progress: 75,
+          packageName: "Full Stack Developer Bundle",
+        },
+        {
+          _id: "2",
+          title: "Node.js Backend Development",
+          thumbnail: "/placeholder.svg?height=200&width=400",
+          progress: 45,
+          packageName: "Backend Developer Package",
+        },
+      ])
+    } finally {
+      setLoading(false)
     }
-  }, [status])
+  }
 
   if (status === "loading" || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50 relative">
         <ModernAnimatedBackground />
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-6">
           <ModernLoadingSkeleton />
         </div>
       </div>
@@ -464,95 +595,121 @@ export default function ModernDashboardPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50 relative">
       <ModernAnimatedBackground />
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* Modern Profile Header */}
         <ModernProfileHeader user={session.user} />
 
-        {/* Modern Earnings Cards */}
-        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        {/* Modern Compact Earnings Cards with Counter Animation */}
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <ModernEarningsCard
             title="Today's Earning"
             amount={userStats.todayEarning}
-            icon={<Coins className="h-6 w-6" />}
+            icon={<Coins className="h-5 w-5" />}
             gradient="from-blue-600 via-blue-700 to-blue-800"
             delay={0}
+            trend="+12%"
+            trendUp={true}
           />
           <ModernEarningsCard
-            title="Last 7 Days Earning"
+            title="Last 7 Days"
             amount={userStats.last7DaysEarning}
-            icon={<Calendar className="h-6 w-6" />}
-            gradient="from-blue-600 via-blue-700 to-blue-800"
+            icon={<Calendar className="h-5 w-5" />}
+            gradient="from-emerald-600 via-green-700 to-teal-800"
             delay={200}
+            trend="+8%"
+            trendUp={true}
           />
           <ModernEarningsCard
-            title="Last 30 Days Earning"
+            title="Last 30 Days"
             amount={userStats.last30DaysEarning}
-            icon={<BarChart3 className="h-6 w-6" />}
-            gradient="from-blue-600 via-blue-700 to-blue-800"
+            icon={<BarChart3 className="h-5 w-5" />}
+            gradient="from-purple-600 via-violet-700 to-indigo-800"
             delay={400}
+            trend="+15%"
+            trendUp={true}
           />
           <ModernEarningsCard
             title="All Time Earning"
             amount={userStats.allTimeEarning}
-            icon={<Trophy className="h-6 w-6" />}
-            gradient="from-blue-600 via-blue-700 to-blue-800"
+            icon={<Trophy className="h-5 w-5" />}
+            gradient="from-orange-600 via-red-700 to-pink-800"
             delay={600}
+            trend="+25%"
+            trendUp={true}
           />
           <ModernEarningsCard
             title="Pending Earning"
             amount={userStats.pendingEarning}
-            icon={<Clock className="h-6 w-6" />}
-            gradient="from-blue-600 via-blue-700 to-blue-800"
+            icon={<Clock className="h-5 w-5" />}
+            gradient="from-cyan-600 via-blue-700 to-indigo-800"
             delay={800}
+            trend="-3%"
+            trendUp={false}
           />
         </div>
 
         {/* Quick Actions */}
-        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           <Link href="/dashboard/affiliate-link">
-            <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-emerald-500 via-green-600 to-teal-700 text-white shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:scale-105 hover:-translate-y-2 cursor-pointer">
-              <CardContent className="p-6 text-center">
-                <div className="p-4 rounded-full bg-white/20 backdrop-blur-sm w-fit mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
-                  <Users className="h-8 w-8 text-white" />
+            <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-emerald-500 via-green-600 to-teal-700 text-white shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:scale-105 hover:-translate-y-2 cursor-pointer h-24">
+              <CardContent className="p-4 text-center h-full flex flex-col justify-center">
+                <div className="flex items-center justify-center gap-3">
+                  <div className="p-2 rounded-full bg-white/20 backdrop-blur-sm group-hover:scale-110 transition-transform duration-300">
+                    <Users className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-sm font-bold text-white">Refer & Earn</h3>
+                    <p className="text-white/80 text-xs">Share and earn</p>
+                  </div>
                 </div>
-                <h3 className="text-lg font-bold text-white mb-2">Refer & Earn</h3>
-                <p className="text-white/80 text-sm">Share and earn money</p>
               </CardContent>
             </Card>
           </Link>
 
           <Link href="/dashboard/my-courses">
-            <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-purple-500 via-violet-600 to-indigo-700 text-white shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:scale-105 hover:-translate-y-2 cursor-pointer">
-              <CardContent className="p-6 text-center">
-                <div className="p-4 rounded-full bg-white/20 backdrop-blur-sm w-fit mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
-                  <BookOpen className="h-8 w-8 text-white" />
+            <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-purple-500 via-violet-600 to-indigo-700 text-white shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:scale-105 hover:-translate-y-2 cursor-pointer h-24">
+              <CardContent className="p-4 text-center h-full flex flex-col justify-center">
+                <div className="flex items-center justify-center gap-3">
+                  <div className="p-2 rounded-full bg-white/20 backdrop-blur-sm group-hover:scale-110 transition-transform duration-300">
+                    <BookOpen className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-sm font-bold text-white">My Courses</h3>
+                    <p className="text-white/80 text-xs">Continue learning</p>
+                  </div>
                 </div>
-                <h3 className="text-lg font-bold text-white mb-2">My Courses</h3>
-                <p className="text-white/80 text-sm">Continue learning</p>
               </CardContent>
             </Card>
           </Link>
 
           <Link href="/dashboard/earnings">
-            <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-orange-500 via-red-600 to-pink-700 text-white shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:scale-105 hover:-translate-y-2 cursor-pointer">
-              <CardContent className="p-6 text-center">
-                <div className="p-4 rounded-full bg-white/20 backdrop-blur-sm w-fit mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
-                  <TrendingUp className="h-8 w-8 text-white" />
+            <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-orange-500 via-red-600 to-pink-700 text-white shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:scale-105 hover:-translate-y-2 cursor-pointer h-24">
+              <CardContent className="p-4 text-center h-full flex flex-col justify-center">
+                <div className="flex items-center justify-center gap-3">
+                  <div className="p-2 rounded-full bg-white/20 backdrop-blur-sm group-hover:scale-110 transition-transform duration-300">
+                    <TrendingUp className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-sm font-bold text-white">Analytics</h3>
+                    <p className="text-white/80 text-xs">View stats</p>
+                  </div>
                 </div>
-                <h3 className="text-lg font-bold text-white mb-2">Analytics</h3>
-                <p className="text-white/80 text-sm">View detailed stats</p>
               </CardContent>
             </Card>
           </Link>
 
           <Link href="/courses">
-            <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-cyan-500 via-blue-600 to-indigo-700 text-white shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:scale-105 hover:-translate-y-2 cursor-pointer">
-              <CardContent className="p-6 text-center">
-                <div className="p-4 rounded-full bg-white/20 backdrop-blur-sm w-fit mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
-                  <Rocket className="h-8 w-8 text-white" />
+            <Card className="group relative overflow-hidden border-0 bg-gradient-to-br from-cyan-500 via-blue-600 to-indigo-700 text-white shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:scale-105 hover:-translate-y-2 cursor-pointer h-24">
+              <CardContent className="p-4 text-center h-full flex flex-col justify-center">
+                <div className="flex items-center justify-center gap-3">
+                  <div className="p-2 rounded-full bg-white/20 backdrop-blur-sm group-hover:scale-110 transition-transform duration-300">
+                    <Rocket className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-sm font-bold text-white">Explore</h3>
+                    <p className="text-white/80 text-xs">Find courses</p>
+                  </div>
                 </div>
-                <h3 className="text-lg font-bold text-white mb-2">Explore</h3>
-                <p className="text-white/80 text-sm">Find new courses</p>
               </CardContent>
             </Card>
           </Link>

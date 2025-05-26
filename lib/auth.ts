@@ -4,18 +4,6 @@ import GoogleProvider from "next-auth/providers/google"
 import dbConnect from "@/lib/mongodb"
 import User from "@/models/User"
 import { compare } from "bcryptjs"
-import jwt from "jsonwebtoken"
-
-// Add this function to handle JWT token signing
-export async function signJwtToken(payload: any) {
-  try {
-    const secret = process.env.NEXTAUTH_SECRET || "fallback-secret-key"
-    return jwt.sign(payload, secret, { expiresIn: "7d" })
-  } catch (error) {
-    console.error("JWT signing error:", error)
-    throw new Error("Failed to sign token")
-  }
-}
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -26,7 +14,6 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
     signOut: "/",
     error: "/login",
-    verifyRequest: "/verify-email",
     newUser: "/dashboard",
   },
   providers: [
@@ -60,10 +47,7 @@ export const authOptions: NextAuthOptions = {
           throw new Error("No user found with this email")
         }
 
-        if (!user.emailVerified) {
-          throw new Error("Please verify your email before logging in")
-        }
-
+        // Remove email verification check - users can login immediately
         const isPasswordValid = await compare(credentials.password, user.password || "")
 
         if (!isPasswordValid) {
@@ -86,34 +70,43 @@ export const authOptions: NextAuthOptions = {
         await dbConnect()
 
         if (account?.provider === "google") {
-          // Check if user already exists
           let existingUser = await User.findOne({ email: user.email })
 
           if (!existingUser) {
-            // Create new user for Google sign-in
+            // Generate unique referral code for new Google users
+            const generateReferralCode = () => {
+              return Math.random().toString(36).substring(2, 8).toUpperCase()
+            }
+
+            let referralCodeGen = generateReferralCode()
+            let isUnique = false
+            while (!isUnique) {
+              const existingUser = await User.findOne({ referralCode: referralCodeGen })
+              if (!existingUser) {
+                isUnique = true
+              } else {
+                referralCodeGen = generateReferralCode()
+              }
+            }
+
             existingUser = await User.create({
               name: user.name,
               email: user.email,
               image: user.image,
               role: "user",
               status: "active",
-              emailVerified: new Date(),
               provider: "google",
+              referralCode: referralCodeGen,
               lastLogin: new Date(),
             })
-            console.log("✅ New Google user created:", existingUser._id)
           } else {
-            // Update existing user
             await User.findByIdAndUpdate(existingUser._id, {
               image: user.image,
-              emailVerified: existingUser.emailVerified || new Date(),
               lastLogin: new Date(),
               provider: existingUser.provider || "google",
             })
-            console.log("✅ Existing user updated:", existingUser._id)
           }
 
-          // Set user data for JWT - CRITICAL for session
           user.id = existingUser._id.toString()
           user.role = existingUser.role
           user.name = existingUser.name
@@ -124,15 +117,13 @@ export const authOptions: NextAuthOptions = {
 
         return true
       } catch (error) {
-        console.error("❌ Error in signIn callback:", error)
+        console.error("Error in signIn callback:", error)
         return false
       }
     },
 
-    async jwt({ token, user, account, trigger }) {
-      // Initial sign in or when user data is updated
+    async jwt({ token, user }) {
       if (user) {
-        console.log("🔑 Setting JWT token for user:", user.email)
         token.id = user.id
         token.role = user.role || "user"
         token.name = user.name
@@ -140,7 +131,6 @@ export const authOptions: NextAuthOptions = {
         token.picture = user.image
       }
 
-      // Always ensure we have user data in token
       if (!token.id && token.email) {
         try {
           await dbConnect()
@@ -149,10 +139,9 @@ export const authOptions: NextAuthOptions = {
             token.id = dbUser._id.toString()
             token.role = dbUser.role
             token.name = dbUser.name
-            console.log("🔄 Refreshed token from database for:", token.email)
           }
         } catch (error) {
-          console.error("❌ Error refreshing token:", error)
+          console.error("Error refreshing token:", error)
         }
       }
 
@@ -166,51 +155,23 @@ export const authOptions: NextAuthOptions = {
         session.user.name = token.name as string
         session.user.email = token.email as string
         session.user.image = token.picture as string
-
-        console.log("📋 Session established for:", session.user.email, "Role:", session.user.role)
-      } else {
-        console.log("⚠️ No token ID found in session callback")
       }
 
       return session
     },
 
     async redirect({ url, baseUrl }) {
-      console.log("🔄 Redirect callback - URL:", url, "BaseURL:", baseUrl)
-
-      // If it's a relative URL, make it absolute
       if (url.startsWith("/")) {
         return `${baseUrl}${url}`
       }
 
-      // If it's the same origin, allow it
       if (new URL(url).origin === baseUrl) {
         return url
       }
 
-      // Default redirect to dashboard
       return `${baseUrl}/dashboard`
     },
   },
 
-  events: {
-    async signIn({ user, account, isNewUser }) {
-      console.log("🎉 SignIn event triggered:", {
-        email: user.email,
-        provider: account?.provider,
-        isNewUser,
-        userId: user.id,
-      })
-    },
-    async session({ session, token }) {
-      console.log("📱 Session event:", {
-        userId: session.user?.id,
-        email: session.user?.email,
-        hasToken: !!token,
-      })
-    },
-  },
-
-  debug: true, // Enable debug mode
   secret: process.env.NEXTAUTH_SECRET,
 }

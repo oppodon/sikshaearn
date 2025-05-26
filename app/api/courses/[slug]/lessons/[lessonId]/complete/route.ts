@@ -15,19 +15,22 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
 
     await connectToDatabase()
 
-    // Get form data
-    const formData = await request.formData()
-    const courseId = formData.get("courseId") as string
-    const lessonId = params.lessonId
+    const { slug, lessonId } = params
 
-    if (!courseId || !lessonId) {
-      return NextResponse.json({ error: "Course ID and Lesson ID are required" }, { status: 400 })
+    if (!slug || !lessonId) {
+      return NextResponse.json({ error: "Course slug and Lesson ID are required" }, { status: 400 })
+    }
+
+    // Find the course by ID (slug is actually the course ID in this case)
+    const course = await Course.findById(slug)
+    if (!course) {
+      return NextResponse.json({ error: "Course not found" }, { status: 404 })
     }
 
     // Find the enrollment
     const enrollment = await Enrollment.findOne({
       user: session.user.id,
-      course: courseId,
+      course: course._id,
     })
 
     if (!enrollment) {
@@ -44,8 +47,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     }
 
     // Calculate progress
-    const course = await Course.findById(courseId)
-    const totalLessons = course.modules.reduce((sum, module) => sum + module.lessons.length, 0)
+    const totalLessons = course.videoLessons.length
     const progress = Math.round((enrollment.completedLessons.length / totalLessons) * 100)
 
     enrollment.progress = progress
@@ -56,8 +58,13 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
 
     return NextResponse.json({
       success: true,
-      completedLessons: enrollment.completedLessons,
-      progress,
+      enrollment: {
+        _id: enrollment._id,
+        completedLessons: enrollment.completedLessons,
+        progress,
+        currentLesson: enrollment.currentLesson,
+        notes: enrollment.notes || {}
+      },
     })
   } catch (error) {
     console.error("Error marking lesson as complete:", error)

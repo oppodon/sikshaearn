@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
-import { ArrowLeft, ArrowRight, BookOpen, CheckCircle, Clock, FileText, LockIcon, Save } from "lucide-react"
+import { ArrowLeft, ArrowRight, BookOpen, Clock, FileText, Save } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Progress } from "@/components/ui/progress"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -19,7 +19,6 @@ interface Lesson {
   description: string
   videoUrl: string
   duration: string
-  isLocked: boolean
   resources?: {
     title: string
     url: string
@@ -37,7 +36,6 @@ interface Course {
 
 interface Enrollment {
   _id: string
-  completedLessons: string[]
   notes?: Record<string, string>
   progress: number
 }
@@ -87,15 +85,6 @@ export default function CoursePage({ params }: { params: { courseid: string } })
   }, [params.courseid])
 
   const handleLessonChange = (index: number) => {
-    if (course?.videoLessons[index]?.isLocked) {
-      toast({
-        title: "Lesson Locked",
-        description: "Complete the previous lesson to unlock this one.",
-        variant: "destructive",
-      })
-      return
-    }
-
     // Save notes for current lesson before changing
     if (course && enrollment) {
       const currentLessonId = course.videoLessons[activeLesson]._id
@@ -110,58 +99,6 @@ export default function CoursePage({ params }: { params: { courseid: string } })
       setNotes(enrollment.notes[lessonId] || "")
     } else {
       setNotes("")
-    }
-  }
-
-  const markLessonComplete = async () => {
-    if (!course) return
-
-    try {
-      const lessonId = course.videoLessons[activeLesson]._id
-
-      const response = await fetch(`/api/course/${params.courseid}/lessons/${lessonId}/complete`, {
-        method: "POST",
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to mark lesson as complete")
-      }
-
-      const data = await response.json()
-      setEnrollment(data.enrollment)
-
-      // Update course with new locked status
-      setCourse((prevCourse) => {
-        if (!prevCourse) return null
-
-        const updatedLessons = [...prevCourse.videoLessons]
-
-        // Unlock next lesson if it exists
-        if (activeLesson + 1 < updatedLessons.length) {
-          updatedLessons[activeLesson + 1] = {
-            ...updatedLessons[activeLesson + 1],
-            isLocked: false,
-          }
-        }
-
-        return {
-          ...prevCourse,
-          videoLessons: updatedLessons,
-        }
-      })
-
-      toast({
-        title: "Lesson Completed",
-        description: "Your progress has been saved.",
-      })
-    } catch (error: any) {
-      console.error("Error marking lesson as complete:", error)
-      toast({
-        title: "Error",
-        description: error.message || "Failed to mark lesson as complete",
-        variant: "destructive",
-      })
     }
   }
 
@@ -208,10 +145,6 @@ export default function CoursePage({ params }: { params: { courseid: string } })
     if (!course) return
     const lessonId = course.videoLessons[activeLesson]._id
     saveNotes(lessonId, notes)
-  }
-
-  const isLessonCompleted = (lessonId: string) => {
-    return enrollment?.completedLessons?.includes(lessonId) || false
   }
 
   const navigateToNextLesson = () => {
@@ -290,7 +223,7 @@ export default function CoursePage({ params }: { params: { courseid: string } })
   }
 
   const currentLesson = course.videoLessons[activeLesson]
-  const progress = enrollment ? Math.round((enrollment.completedLessons.length / course.videoLessons.length) * 100) : 0
+  const progress = enrollment ? enrollment.progress || 0 : 0
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -329,10 +262,7 @@ export default function CoursePage({ params }: { params: { courseid: string } })
                 variant="outline"
                 size="sm"
                 onClick={navigateToNextLesson}
-                disabled={
-                  activeLesson === course.videoLessons.length - 1 ||
-                  (activeLesson < course.videoLessons.length - 1 && course.videoLessons[activeLesson + 1].isLocked)
-                }
+                disabled={activeLesson === course.videoLessons.length - 1}
               >
                 Next <ArrowRight className="h-4 w-4 ml-1" />
               </Button>
@@ -349,22 +279,11 @@ export default function CoursePage({ params }: { params: { courseid: string } })
               <div className="prose max-w-none">
                 <p>{currentLesson?.description || "No description available for this lesson."}</p>
               </div>
-              <div className="mt-6 flex justify-between">
+              <div className="mt-6">
                 <div className="flex items-center text-sm text-muted-foreground">
                   <Clock className="h-4 w-4 mr-1" />
                   Duration: {currentLesson?.duration || "N/A"}
                 </div>
-                {isLessonCompleted(currentLesson?._id) ? (
-                  <Button variant="outline" disabled className="bg-green-50">
-                    <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
-                    Completed
-                  </Button>
-                ) : (
-                  <Button onClick={markLessonComplete}>
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Mark as Complete
-                  </Button>
-                )}
               </div>
             </TabsContent>
             <TabsContent value="notes" className="p-4 border rounded-md mt-2">
@@ -421,9 +340,7 @@ export default function CoursePage({ params }: { params: { courseid: string } })
           <div className="bg-muted p-4 rounded-lg">
             <h3 className="font-medium mb-2">Course Progress</h3>
             <Progress value={progress} className="mb-2" />
-            <p className="text-sm text-muted-foreground">
-              {enrollment?.completedLessons.length || 0} of {course.videoLessons.length} lessons completed ({progress}%)
-            </p>
+            <p className="text-sm text-muted-foreground">Progress: {progress}%</p>
           </div>
 
           <div>
@@ -432,34 +349,23 @@ export default function CoursePage({ params }: { params: { courseid: string } })
               {course.videoLessons.map((lesson, index) => (
                 <Card
                   key={index}
-                  className={`cursor-pointer transition-colors ${
-                    activeLesson === index ? "border-primary" : ""
-                  } ${lesson.isLocked ? "opacity-70" : ""}`}
+                  className={`cursor-pointer transition-colors ${activeLesson === index ? "border-primary" : ""}`}
                   onClick={() => handleLessonChange(index)}
                 >
                   <CardContent className="p-3 flex items-center justify-between">
                     <div className="flex items-center">
                       <div
                         className={`w-6 h-6 rounded-full flex items-center justify-center mr-2 ${
-                          isLessonCompleted(lesson._id)
-                            ? "bg-green-100 text-green-600"
-                            : activeLesson === index
-                              ? "bg-blue-100 text-blue-600"
-                              : "bg-gray-100 text-gray-600"
+                          activeLesson === index ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-600"
                         }`}
                       >
-                        {isLessonCompleted(lesson._id) ? (
-                          <CheckCircle className="h-3 w-3" />
-                        ) : (
-                          <BookOpen className="h-3 w-3" />
-                        )}
+                        <BookOpen className="h-3 w-3" />
                       </div>
                       <div>
                         <p className="text-sm font-medium line-clamp-1">{lesson.title}</p>
                         <p className="text-xs text-muted-foreground">{lesson.duration}</p>
                       </div>
                     </div>
-                    {lesson.isLocked && <LockIcon className="h-4 w-4 text-muted-foreground" />}
                   </CardContent>
                 </Card>
               ))}

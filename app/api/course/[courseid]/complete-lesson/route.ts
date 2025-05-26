@@ -1,102 +1,87 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
-import { connectToDatabase } from "@/lib/mongodb"
-import Enrollment from "@/models/Enrollment"
-import Course from "@/models/Course"
-import Package from "@/models/Package"
+\`\`\`ts file="app/api/auth/register/route.ts"
+[v0-no-op-code-block-prefix]import { type NextRequest, NextResponse } from "next/server"
+import dbConnect from "@/lib/mongodb"
+import User from "@/models/User"
 
-export async function POST(request: NextRequest, { params }: { params: { courseid: string } }) {
+export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const { name, email, password, referralCode } = await req.json()
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    // Validate input
+    if (!name || !email || !password) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    const { lessonId } = await request.json()
-
-    if (!lessonId) {
-      return NextResponse.json({ error: "Lesson ID is required" }, { status: 400 })
+    if (password.length < 8) {
+      return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 })
     }
 
-    await connectToDatabase()
-    const { courseid } = params
+    // Connect to database
+    await dbConnect()
 
-    // Find course by ID
-    const course = await Course.findById(courseid).lean()
-
-    if (!course) {
-      return NextResponse.json({ error: "Course not found" }, { status: 404 })
+    // Check if user already exists
+    const existingUser = await User.findOne({ email })
+    if (existingUser) {
+      return NextResponse.json({ error: "Email already in use" }, { status: 409 })
     }
 
-    // Find packages that contain this course
-    const packages = await Package.find({
-      courses: { $in: [courseid] },
-    })
-      .select("_id")
-      .lean()
+    // Check referral code if provided
+    let referredBy = null
+    if (referralCode) {
+      const referrer = await User.findOne({ referralCode })
+      if (referrer) {
+        referredBy = referrer._id
 
-    if (!packages || packages.length === 0) {
-      return NextResponse.json({ error: "Course not available in any package" }, { status: 404 })
-    }
-
-    const packageIds = packages.map((pkg) => pkg._id)
-
-    // Find user's enrollment for this course
-    const enrollment = await Enrollment.findOne({
-      user: session.user.id,
-      package: { $in: packageIds },
-      isActive: true,
-    })
-
-    if (!enrollment) {
-      return NextResponse.json({ error: "Not enrolled in this course" }, { status: 403 })
-    }
-
-    // Check if the lesson exists in the course
-    const lessonExists = course.videoLessons.some((lesson) => lesson._id.toString() === lessonId)
-
-    if (!lessonExists) {
-      return NextResponse.json({ error: "Lesson not found in this course" }, { status: 404 })
-    }
-
-    // Add lesson to completed lessons if not already completed
-    if (!enrollment.completedLessons.includes(lessonId)) {
-      enrollment.completedLessons.push(lessonId)
-    }
-
-    // Update current lesson
-    enrollment.currentLesson = lessonId
-
-    // Calculate progress
-    const totalLessons = course.videoLessons.length
-    const completedLessonsInCourse = enrollment.completedLessons.filter((id) =>
-      course.videoLessons.some((lesson) => lesson._id.toString() === id.toString()),
-    ).length
-
-    enrollment.progress = Math.round((completedLessonsInCourse / totalLessons) * 100)
-
-    // Check if all lessons are completed
-    if (enrollment.progress === 100) {
-      // Add course to completed courses if not already there
-      if (!enrollment.completedCourses.includes(courseid)) {
-        enrollment.completedCourses.push(courseid)
+        // Track referral click
+        await User.findByIdAndUpdate(referrer._id, {
+          $inc: { referralClicks: 1 },
+          $addToSet: { referredUsers: [] }, // Initialize array if it doesn't exist
+        })
       }
     }
 
-    // Update last accessed
-    enrollment.lastAccessed = new Date()
+    // Generate unique referral code
+    const generateReferralCode = () => {
+      return Math.random().toString(36).substring(2, 8).toUpperCase()
+    }
 
-    await enrollment.save()
+    let referralCodeGen = generateReferralCode()
+    let isUnique = false
+    while (!isUnique) {
+      const existingUser = await User.findOne({ referralCode: referralCodeGen })
+      if (!existingUser) {
+        isUnique = true
+      } else {
+        referralCodeGen = generateReferralCode()
+      }
+    }
 
-    return NextResponse.json({
-      success: true,
-      progress: enrollment.progress,
-      completedLessons: enrollment.completedLessons,
+    // Create new user (verified by default)
+    const newUser = new User({
+      name,
+      email,
+      password,
+      isVerified: true, // Auto-verify users
+      referredBy,
+      referralCode: referralCodeGen,
     })
-  } catch (error: any) {
-    console.error("Error completing lesson:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+
+    await newUser.save()
+
+    // Update referrer's referred users list
+    if (referredBy) {
+      await User.findByIdAndUpdate(referredBy, { $addToSet: { referredUsers: newUser._id } })
+    }
+
+    return NextResponse.json(
+      {
+        message: "User registered successfully. You can now log in.",
+        userId: newUser._id,
+      },
+      { status: 201 },
+    )
+  } catch (error) {
+    console.error("Registration error:", error)
+    return NextResponse.json({ error: "Failed to register user" }, { status: 500 })
   }
 }

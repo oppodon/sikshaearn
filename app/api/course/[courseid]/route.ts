@@ -86,45 +86,18 @@ export async function GET(request: NextRequest, { params }: { params: { courseid
       }
     }
 
-    // Get completed lessons for this user and course
-    const userProgress = await Enrollment.findOne(
-      {
-        user: userId,
-        $or: [{ courseId: courseid }, { package: { $in: course.packages } }],
-      },
-      { completedLessons: 1 },
-    ).lean()
+    // All lessons are now accessible - no locking logic
+    const lessonsWithAccessStatus =
+      course.videoLessons?.map((lesson) => ({
+        ...lesson,
+        isLocked: false, // All lessons are unlocked
+      })) || []
 
-    const completedLessons = userProgress?.completedLessons || []
-
-    // Add locked status to lessons based on completion
-    let lessonsWithLockStatus = []
-    if (course.videoLessons && Array.isArray(course.videoLessons)) {
-      lessonsWithLockStatus = course.videoLessons.map((lesson, index) => {
-        // First lesson is always unlocked
-        if (index === 0) {
-          return { ...lesson, isLocked: false }
-        }
-
-        // Check if previous lesson is completed
-        const previousLessonId = course.videoLessons[index - 1]._id.toString()
-        const isPreviousLessonCompleted = completedLessons.some((lessonId) => lessonId.toString() === previousLessonId)
-
-        return {
-          ...lesson,
-          isLocked: !isPreviousLessonCompleted,
-        }
-      })
-    } else {
-      // Handle case where videoLessons is undefined or not an array
-      lessonsWithLockStatus = []
-    }
-
-    // Return course with locked status for lessons
+    // Return course with all lessons accessible
     return NextResponse.json({
       course: {
         ...course,
-        videoLessons: lessonsWithLockStatus,
+        videoLessons: lessonsWithAccessStatus,
       },
       enrollment,
     })

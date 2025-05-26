@@ -1,12 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
 import User from "@/models/User"
-import { sendVerificationEmail } from "@/lib/mail"
-import crypto from "crypto"
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, email, password, referralCode } = await req.json()
+    const { name, email, password, referralCode, phone, country, city, address } = await req.json()
 
     // Validate input
     if (!name || !email || !password) {
@@ -26,11 +24,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Email already in use" }, { status: 409 })
     }
 
-    // Generate verification token
-    const verificationToken = crypto.randomBytes(32).toString("hex")
-    const verificationTokenExpiry = new Date()
-    verificationTokenExpiry.setHours(verificationTokenExpiry.getHours() + 24) // Token valid for 24 hours
-
     // Check referral code if provided
     let referredBy = null
     if (referralCode) {
@@ -41,7 +34,7 @@ export async function POST(req: NextRequest) {
         // Track referral click
         await User.findByIdAndUpdate(referrer._id, {
           $inc: { referralClicks: 1 },
-          $addToSet: { referredUsers: [] }, // Initialize array if it doesn't exist
+          $addToSet: { referredUsers: [] },
         })
       }
     }
@@ -62,15 +55,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Create new user
+    // Create new user - automatically active and verified
     const newUser = new User({
       name,
       email,
       password,
-      verificationToken,
-      verificationTokenExpiry,
       referredBy,
-      referralCode: referralCodeGen, // Add this line
+      referralCode: referralCodeGen,
+      status: "active", // Automatically active
+      phone: phone || "",
+      country: country || "",
+      city: city || "",
+      address: address || "",
     })
 
     await newUser.save()
@@ -80,12 +76,9 @@ export async function POST(req: NextRequest) {
       await User.findByIdAndUpdate(referredBy, { $addToSet: { referredUsers: newUser._id } })
     }
 
-    // Send verification email
-    await sendVerificationEmail(email, verificationToken)
-
     return NextResponse.json(
       {
-        message: "User registered successfully. Please check your email to verify your account.",
+        message: "User registered successfully. You can now log in.",
         userId: newUser._id,
       },
       { status: 201 },

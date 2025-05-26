@@ -9,14 +9,12 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
-import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import {
   BookOpen,
   Clock,
   FileText,
-  CheckCircle,
   User,
   Calendar,
   PlayCircle,
@@ -72,10 +70,12 @@ async function getCourseData(slug: string, userId: string) {
     })
   })
 
-  // Calculate progress
-  const totalLessons = course.modules.reduce((sum, module) => sum + module.lessons.length, 0)
-  const completedLessons = enrollment.completedLessons?.length || 0
-  const progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0
+  // Calculate progress based on enrollment data rather than completed lessons
+  const progress = enrollment.progress || 0
+
+  // Remove completed lessons tracking
+  // const completedLessons = enrollment.completedLessons?.length || 0
+  // const progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0
 
   // Calculate next and previous lessons
   let nextLesson = null
@@ -111,7 +111,6 @@ async function getCourseData(slug: string, userId: string) {
     currentModule,
     currentLesson,
     progress,
-    completedLessons: enrollment.completedLessons || [],
     notes: enrollment.notes || {},
     nextLesson,
     prevLesson,
@@ -139,7 +138,6 @@ export default async function CoursePlayerPage({ params }: { params: { slug: str
     currentModule,
     currentLesson,
     progress,
-    completedLessons,
     notes,
     nextLesson,
     prevLesson,
@@ -234,19 +232,6 @@ export default async function CoursePlayerPage({ params }: { params: { slug: str
                     <Clock className="h-4 w-4 mr-1" />
                     <span>{currentLesson?.duration} min</span>
                   </div>
-                  {completedLessons.includes(currentLesson?._id.toString()) ? (
-                    <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
-                      <CheckCircle className="h-3 w-3 mr-1" /> Completed
-                    </Badge>
-                  ) : (
-                    <form action="/api/courses/[slug]/lessons/[lessonId]/complete" method="POST">
-                      <input type="hidden" name="courseId" value={course._id} />
-                      <input type="hidden" name="lessonId" value={currentLesson?._id} />
-                      <Button type="submit" variant="outline" size="sm" className="h-7">
-                        <CheckCircle className="h-3 w-3 mr-1" /> Mark as Complete
-                      </Button>
-                    </form>
-                  )}
                 </div>
                 <p className="text-muted-foreground whitespace-pre-line">{currentLesson?.description}</p>
               </div>
@@ -334,7 +319,7 @@ export default async function CoursePlayerPage({ params }: { params: { slug: str
                   <Progress value={progress} className="h-2" />
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">{completedLessons.length}</span> of{" "}
+                  <span className="font-medium text-foreground">0</span> of{" "}
                   {course.modules.reduce((sum, module) => sum + module.lessons.length, 0)} lessons completed
                 </div>
                 <Button variant="outline" size="sm" className="w-full" asChild>
@@ -364,7 +349,6 @@ export default async function CoursePlayerPage({ params }: { params: { slug: str
                       <div>
                         {module.lessons.map((lesson, lessonIndex) => {
                           const isActive = currentLesson?._id.toString() === lesson._id.toString()
-                          const isCompleted = completedLessons.includes(lesson._id.toString())
 
                           return (
                             <Link
@@ -373,11 +357,7 @@ export default async function CoursePlayerPage({ params }: { params: { slug: str
                               className={`flex items-center px-6 py-3 hover:bg-muted/50 ${isActive ? "bg-primary/10" : ""}`}
                             >
                               <div className="mr-3 flex-shrink-0">
-                                {isCompleted ? (
-                                  <div className="h-6 w-6 rounded-full bg-green-500 flex items-center justify-center">
-                                    <CheckCircle className="h-4 w-4 text-white" />
-                                  </div>
-                                ) : isActive ? (
+                                {isActive ? (
                                   <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
                                     <PlayCircle className="h-4 w-4 text-white" />
                                   </div>
