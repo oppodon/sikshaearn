@@ -1,11 +1,11 @@
-import { type NextRequest, NextResponse } from "next/server"
+\`\`\`ts file="app/api/auth/register/route.ts"
+[v0-no-op-code-block-prefix]import { type NextRequest, NextResponse } from "next/server"
 import dbConnect from "@/lib/mongodb"
 import User from "@/models/User"
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, email, password, referralCode, phone, country, city, address, skipEmailVerification } =
-      await req.json()
+    const { name, email, password, referralCode } = await req.json()
 
     // Validate input
     if (!name || !email || !password) {
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
         // Track referral click
         await User.findByIdAndUpdate(referrer._id, {
           $inc: { referralClicks: 1 },
-          $addToSet: { referredUsers: [] },
+          $addToSet: { referredUsers: [] }, // Initialize array if it doesn't exist
         })
       }
     }
@@ -56,19 +56,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Create new user - automatically active and verified when skipEmailVerification is true
+    // Create new user (verified by default)
     const newUser = new User({
       name,
       email,
       password,
+      isVerified: true, // Auto-verify users
       referredBy,
       referralCode: referralCodeGen,
-      status: "active", // Always active
-      emailVerified: skipEmailVerification ? true : false, // Skip verification if requested
-      phone: phone || "",
-      country: country || "",
-      city: city || "",
-      address: address || "",
     })
 
     await newUser.save()
@@ -78,17 +73,9 @@ export async function POST(req: NextRequest) {
       await User.findByIdAndUpdate(referredBy, { $addToSet: { referredUsers: newUser._id } })
     }
 
-    // Only send verification email if not skipping
-    if (!skipEmailVerification) {
-      // Send verification email logic would go here
-      // For now, we're skipping this entirely for checkout registrations
-    }
-
     return NextResponse.json(
       {
-        message: skipEmailVerification
-          ? "User registered successfully and is ready to use the platform."
-          : "User registered successfully. Please check your email for verification.",
+        message: "User registered successfully. You can now log in.",
         userId: newUser._id,
       },
       { status: 201 },

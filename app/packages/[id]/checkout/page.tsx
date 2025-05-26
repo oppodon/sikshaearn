@@ -304,6 +304,7 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
           city: userFormData.city,
           address: userFormData.address,
           referralCode: appliedReferral,
+          skipEmailVerification: true, // Skip email verification for checkout registrations
         }),
       })
 
