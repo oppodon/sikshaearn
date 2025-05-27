@@ -1,18 +1,12 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { connectToDatabase } from "@/lib/mongodb"
 import Transaction from "@/models/Transaction"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { isValidObjectId } from "mongoose"
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "@/lib/auth"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
-    }
-
     await connectToDatabase()
     const { id } = params
 
@@ -20,21 +14,29 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ success: false, error: "Invalid transaction ID" }, { status: 400 })
     }
 
-    // Find transaction
-    const transaction = await Transaction.findById(id).populate("package", "title slug price").lean()
+    // Find transaction with populated package data
+    const transaction = await Transaction.findById(id)
+      .populate('package', 'title slug price')
+      .lean()
 
     if (!transaction) {
       return NextResponse.json({ success: false, error: "Transaction not found" }, { status: 404 })
     }
 
-    // Verify that the transaction belongs to the user or user is admin
-    if (transaction.user.toString() !== session.user.id && session.user.role !== "admin") {
+    // Get session to check if user owns this transaction (optional for security)
+    const session = await getServerSession(authOptions)
+    
+    // If user is logged in, verify they own this transaction
+    if (session && transaction.user.toString() !== session.user.id) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
     }
 
     return NextResponse.json({ success: true, transaction }, { status: 200 })
   } catch (error: any) {
     console.error("Error fetching transaction:", error)
-    return NextResponse.json({ success: false, error: error.message || "Failed to fetch transaction" }, { status: 500 })
+    return NextResponse.json(
+      { success: false, error: error.message || "Failed to fetch transaction" },
+      { status: 500 }
+    )
   }
 }

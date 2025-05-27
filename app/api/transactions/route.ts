@@ -5,45 +5,22 @@ import { connectToDatabase } from "@/lib/mongodb"
 import { ensureModelsRegistered, Transaction, User, Package } from "@/lib/models"
 import { uploadToCloudinary } from "@/lib/cloudinary"
 
-export async function GET(req: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions)
-
-    if (!session) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
-    }
-
-    await connectToDatabase()
-    ensureModelsRegistered()
-
-    const transactions = await Transaction.find({ user: session.user.id })
-      .populate("package", "title slug price")
-      .sort({ createdAt: -1 })
-      .lean()
-
-    return NextResponse.json({ success: true, transactions }, { status: 200 })
-  } catch (error) {
-    console.error("❌ Error fetching transactions:", error)
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch transactions. Please try again." },
-      { status: 500 },
-    )
-  }
-}
-
 export async function POST(req: NextRequest) {
   try {
     console.log("🔄 Creating new transaction")
 
     const session = await getServerSession(authOptions)
-    if (!session) {
+    const formData = await req.formData()
+    const userEmail = formData.get("userEmail") as string
+
+    // Allow unauthenticated requests if userEmail is provided (for checkout registration)
+    if (!session && !userEmail) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
     }
 
     await connectToDatabase()
     ensureModelsRegistered()
 
-    const formData = await req.formData()
     const packageId = formData.get("packageId") as string
     const amount = formData.get("amount") as string
     const paymentMethodId = formData.get("paymentMethodId") as string
@@ -59,13 +36,27 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Get user ID - either from session or by email lookup
+    let userId: string
+    if (session) {
+      userId = session.user.id
+    } else if (userEmail) {
+      const user = await User.findOne({ email: userEmail }).lean()
+      if (!user) {
+        return NextResponse.json({ success: false, error: "User not found" }, { status: 404 })
+      }
+      userId = user._id.toString()
+    } else {
+      return NextResponse.json({ success: false, error: "User identification required" }, { status: 400 })
+    }
+
     // Upload payment proof if provided
     let paymentProofUrl = null
     if (paymentProofFile && paymentProofFile.size > 0) {
       try {
         const paymentProofResult = await uploadToCloudinary(
           await paymentProofFile.arrayBuffer(),
-          `payments/${session.user.id}/${Date.now()}`,
+          `payments/${userId}/${Date.now()}`,
           paymentProofFile.type,
         )
         paymentProofUrl = paymentProofResult?.secure_url || null
@@ -84,7 +75,7 @@ export async function POST(req: NextRequest) {
     console.log("📦 Package found:", packageData.title, "Price:", packageData.price)
 
     // Get user data
-    const user = await User.findById(session.user.id).lean()
+    const user = await User.findById(userId).lean()
     if (!user) {
       return NextResponse.json({ success: false, error: "User not found" }, { status: 404 })
     }
@@ -103,7 +94,7 @@ export async function POST(req: NextRequest) {
       if (referrer) {
         affiliateId = referrer._id
         // Update user's referredBy field
-        await User.findByIdAndUpdate(session.user.id, { referredBy: referrer._id })
+        await User.findByIdAndUpdate(userId, { referredBy: referrer._id })
         console.log("✅ Updated user referredBy to:", referrer._id)
       } else {
         console.log("⚠️ Referral code not found:", referralCode)
@@ -131,7 +122,7 @@ export async function POST(req: NextRequest) {
 
     // Create transaction
     const transaction = await Transaction.create({
-      user: session.user.id,
+      user: userId,
       package: packageId,
       amount: Number.parseFloat(amount),
       paymentMethodId,
