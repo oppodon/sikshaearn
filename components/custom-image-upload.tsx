@@ -117,13 +117,17 @@ export function CustomImageUpload({
 
       {value ? (
         <div className="relative rounded-md overflow-hidden border">
-          <div className="aspect-video relative">
+          <div className="aspect-auto relative">
+            {" "}
+            {/* Changed from aspect-video to aspect-auto */}
+            {/* Use object-contain instead of object-cover to prevent cropping */}
             <Image
               src={value || "/placeholder.svg"}
               alt="Uploaded image"
-              fill
-              className="object-cover"
-              sizes="(max-width: 768px) 100vw, 50vw"
+              width={500}
+              height={500}
+              className="object-contain w-full"
+              style={{ maxHeight: "500px" }} // Set a max height but allow natural aspect ratio
             />
           </div>
           <Button
@@ -168,7 +172,7 @@ export function CustomImageUpload({
                 </div>
               ) : (
                 <>
-                  <div className="mb-4 w-full max-w-xs aspect-video relative bg-muted rounded-md overflow-hidden flex items-center justify-center">
+                  <div className="mb-4 w-full max-w-xs aspect-auto relative bg-muted rounded-md overflow-hidden flex items-center justify-center">
                     <ImageIcon className="h-10 w-10 text-muted-foreground" />
                   </div>
                   <Upload className="h-8 w-8 text-muted-foreground mb-2" />

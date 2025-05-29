@@ -20,12 +20,13 @@ export async function uploadImage(file: File, folder = "general") {
     const fileType = file.type.split("/")[1]
     const dataURI = `data:${file.type};base64,${base64}`
 
-    // Upload to Cloudinary
+    // Upload to Cloudinary without any cropping transformations
     const result = await cloudinary.uploader.upload(dataURI, {
       folder: `knowledgehubnepal/${folder}`,
       resource_type: "image",
       format: fileType,
-      transformation: [{ width: 1280, height: 720, crop: "limit" }, { quality: "auto:good" }, { fetch_format: "auto" }],
+      // Remove all transformations that could cause cropping
+      transformation: [{ quality: "auto:good" }, { fetch_format: "auto" }],
     })
 
     return {
@@ -50,12 +51,13 @@ export async function uploadToCloudinary(buffer: ArrayBuffer, path: string, mime
     const base64 = fileBuffer.toString("base64")
     const dataURI = `data:${mimeType};base64,${base64}`
 
-    // Upload to Cloudinary
+    // Upload to Cloudinary without any cropping transformations
     const result = await cloudinary.uploader.upload(dataURI, {
       folder: `knowledgehubnepal/${path.split("/")[0]}`,
       resource_type: "auto",
       public_id: path,
-      transformation: [{ width: 1280, height: 720, crop: "limit" }, { quality: "auto:good" }, { fetch_format: "auto" }],
+      // Remove all transformations that could cause cropping
+      transformation: [{ quality: "auto:good" }, { fetch_format: "auto" }],
     })
 
     return {

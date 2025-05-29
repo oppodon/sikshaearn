@@ -1,7 +1,10 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useSession } from "next-auth/react"
 import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -15,28 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  ArrowLeft,
-  CheckCircle,
-  AlertCircle,
-  Info,
-  Users,
-  CreditCard,
-  Upload,
-  Clock,
-  Shield,
-  ArrowRight,
-  Check,
-  X,
-  User,
-  Mail,
-  MapPin,
-  Eye,
-  EyeOff,
-  Sparkles,
-  Phone,
-  Home,
-} from "lucide-react"
+import { ArrowLeft, CheckCircle, AlertCircle, Info, Users, CreditCard, Upload, Clock, Shield, ArrowRight, Check, X, User, Mail, MapPin, Eye, EyeOff, Sparkles, Phone, Home, FileImage } from 'lucide-react'
 
 interface Package {
   _id: string
@@ -81,6 +63,7 @@ type CheckoutStep = "personal" | "account" | "address" | "payment" | "confirmati
 export default function CheckoutPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { data: session, status } = useSession()
   const { toast } = useToast()
 
   const [currentStep, setCurrentStep] = useState<CheckoutStep>("personal")
@@ -92,6 +75,9 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
   const [transactionId, setTransactionId] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null)
+  const [paymentProofPreview, setPaymentProofPreview] = useState<string | null>(null)
+  const [isUploadingProof, setIsUploadingProof] = useState(false)
 
   // Form data
   const [userFormData, setUserFormData] = useState<UserFormData>({
@@ -122,6 +108,26 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
   ]
 
   const currentStepIndex = steps.findIndex((step) => step.id === currentStep)
+
+  // Auto-fill user data if logged in
+  useEffect(() => {
+    if (session?.user) {
+      const nameParts = session.user.name?.split(" ") || ["", ""]
+      setUserFormData((prev) => ({
+        ...prev,
+        firstName: nameParts[0] || "",
+        lastName: nameParts.slice(1).join(" ") || "",
+        email: session.user.email || "",
+        phone: session.user.phone || "",
+        country: session.user.country || "",
+        city: session.user.city || "",
+        address: session.user.address || "",
+      }))
+
+      // Skip to payment step for logged-in users
+      setCurrentStep("payment")
+    }
+  }, [session])
 
   useEffect(() => {
     // Check for referral code in URL
@@ -221,7 +227,49 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
     }))
   }
 
+  const handlePaymentProofChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        // 5MB limit
+        toast({
+          title: "File too large",
+          description: "Please select a file smaller than 5MB.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (!file.type.startsWith("image/")) {
+        toast({
+          title: "Invalid file type",
+          description: "Please select an image file.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      setPaymentProofFile(file)
+
+      // Create preview
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setPaymentProofPreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
   const validateCurrentStep = () => {
+    if (session?.user) {
+      // For logged-in users, only validate payment step
+      if (currentStep === "payment") {
+        return selectedPaymentMethod && userFormData.agreeToTerms && paymentProofFile
+      }
+      return true
+    }
+
+    // For guest users, validate all steps
     switch (currentStep) {
       case "personal":
         return userFormData.firstName && userFormData.lastName && userFormData.phone
@@ -236,7 +284,7 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
       case "address":
         return userFormData.country && userFormData.city && userFormData.address
       case "payment":
-        return selectedPaymentMethod
+        return selectedPaymentMethod && userFormData.agreeToTerms && paymentProofFile
       default:
         return true
     }
@@ -252,7 +300,10 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
       return
     }
 
-    const stepOrder: CheckoutStep[] = ["personal", "account", "address", "payment", "confirmation"]
+    const stepOrder: CheckoutStep[] = session?.user
+      ? ["payment", "confirmation"]
+      : ["personal", "account", "address", "payment", "confirmation"]
+
     const currentIndex = stepOrder.indexOf(currentStep)
     if (currentIndex < stepOrder.length - 1) {
       setCurrentStep(stepOrder[currentIndex + 1])
@@ -260,7 +311,10 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
   }
 
   const handlePreviousStep = () => {
-    const stepOrder: CheckoutStep[] = ["personal", "account", "address", "payment", "confirmation"]
+    const stepOrder: CheckoutStep[] = session?.user
+      ? ["payment", "confirmation"]
+      : ["personal", "account", "address", "payment", "confirmation"]
+
     const currentIndex = stepOrder.indexOf(currentStep)
     if (currentIndex > 0) {
       setCurrentStep(stepOrder[currentIndex - 1])
@@ -268,10 +322,10 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
   }
 
   const handleCreateOrder = async () => {
-    if (!packageData || !selectedPaymentMethod) {
+    if (!packageData || !selectedPaymentMethod || !paymentProofFile) {
       toast({
         title: "Missing Information",
-        description: "Please ensure all required information is provided.",
+        description: "Please ensure all required information is provided including payment proof.",
         variant: "destructive",
       })
       return
@@ -289,37 +343,43 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
     try {
       setIsSubmitting(true)
 
-      // First, register the user
-      const registerResponse = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: `${userFormData.firstName} ${userFormData.lastName}`,
-          email: userFormData.email,
-          password: userFormData.password,
-          phone: userFormData.phone,
-          country: userFormData.country,
-          city: userFormData.city,
-          address: userFormData.address,
-          referralCode: appliedReferral,
-          skipEmailVerification: true, // Skip email verification for checkout registrations
-        }),
-      })
+      // For guest users, register first
+      if (!session?.user) {
+        const registerResponse = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: `${userFormData.firstName} ${userFormData.lastName}`,
+            email: userFormData.email,
+            password: userFormData.password,
+            phone: userFormData.phone,
+            country: userFormData.country,
+            city: userFormData.city,
+            address: userFormData.address,
+            referralCode: appliedReferral,
+            skipEmailVerification: true,
+          }),
+        })
 
-      const registerResult = await registerResponse.json()
+        const registerResult = await registerResponse.json()
 
-      if (!registerResponse.ok) {
-        throw new Error(registerResult.error || "Failed to create account")
+        if (!registerResponse.ok) {
+          throw new Error(registerResult.error || "Failed to create account")
+        }
       }
 
-      // Then create the transaction
+      // Create transaction with payment proof
       const formData = new FormData()
       formData.append("packageId", packageData._id)
       formData.append("amount", packageData.price.toString())
       formData.append("paymentMethodId", selectedPaymentMethod)
-      formData.append("userEmail", userFormData.email)
+      formData.append("paymentProof", paymentProofFile)
+
+      if (!session?.user) {
+        formData.append("userEmail", userFormData.email)
+      }
 
       if (appliedReferral) {
         formData.append("referralCode", appliedReferral)
@@ -340,8 +400,8 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
       setCurrentStep("confirmation")
 
       toast({
-        title: "Account Created & Order Placed!",
-        description: "Please complete your payment using the instructions below.",
+        title: session?.user ? "Order Placed Successfully!" : "Account Created & Order Placed!",
+        description: "Your payment proof has been uploaded. We'll verify it within 24 hours.",
       })
     } catch (error: any) {
       console.error("Error creating order:", error)
@@ -357,7 +417,7 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
 
   const selectedMethod = paymentMethods.find((method) => method._id === selectedPaymentMethod)
 
-  if (isLoading) {
+  if (status === "loading" || isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
         <div className="container max-w-7xl mx-auto py-4 px-4 sm:py-8">
@@ -400,7 +460,7 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <div className="container max-w-7xl mx-auto py-4 px-4 sm:py-8">
-        {/* Mobile Header */}
+        {/* Header */}
         <div className="flex items-center gap-3 mb-6 sm:gap-4 sm:mb-8">
           <Button variant="outline" size="icon" asChild className="rounded-full h-8 w-8 sm:h-10 sm:w-10">
             <Link href={`/packages/${params.id}`}>
@@ -408,16 +468,56 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
             </Link>
           </Button>
           <div>
-            <h1 className="text-xl font-bold text-gray-900 sm:text-2xl lg:text-3xl">Secure Checkout</h1>
-            <p className="text-sm text-gray-600 sm:text-base">Complete your purchase and create your account</p>
+            <h1 className="text-xl font-bold text-gray-900 sm:text-2xl lg:text-3xl">
+              {session?.user ? "Complete Purchase" : "Secure Checkout"}
+            </h1>
+            <p className="text-sm text-gray-600 sm:text-base">
+              {session?.user
+                ? `Welcome back, ${session.user.name?.split(" ")[0]}! Complete your purchase below.`
+                : "Complete your purchase and create your account"}
+            </p>
           </div>
         </div>
 
-        {/* Mobile Progress Steps */}
-        <div className="mb-6 sm:mb-8">
-          {/* Mobile: Horizontal scroll */}
-          <div className="block sm:hidden">
-            <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide">
+        {/* Progress Steps - Only show for guest users */}
+        {!session?.user && (
+          <div className="mb-6 sm:mb-8">
+            {/* Mobile: Horizontal scroll */}
+            <div className="block sm:hidden">
+              <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide">
+                {steps.map((step, index) => {
+                  const StepIcon = step.icon
+                  const isActive = index <= currentStepIndex
+                  const isCurrent = index === currentStepIndex
+                  const isCompleted = index < currentStepIndex
+
+                  return (
+                    <div key={step.id} className="flex flex-col items-center min-w-[80px]">
+                      <div
+                        className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all mb-2 ${
+                          isCompleted
+                            ? "bg-green-500 border-green-500 text-white"
+                            : isActive
+                              ? `${step.color} border-transparent text-white`
+                              : "bg-white border-gray-300 text-gray-400"
+                        }`}
+                      >
+                        {isCompleted ? <Check className="h-5 w-5" /> : <StepIcon className="h-5 w-5" />}
+                      </div>
+                      <div className="text-center">
+                        <p className={`text-xs font-medium ${isCurrent ? "text-gray-900" : "text-gray-500"}`}>
+                          {step.title}
+                        </p>
+                        <p className="text-xs text-gray-400">{step.subtitle}</p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Desktop: Full width */}
+            <div className="hidden sm:flex items-center justify-between">
               {steps.map((step, index) => {
                 const StepIcon = step.icon
                 const isActive = index <= currentStepIndex
@@ -425,75 +525,43 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
                 const isCompleted = index < currentStepIndex
 
                 return (
-                  <div key={step.id} className="flex flex-col items-center min-w-[80px]">
-                    <div
-                      className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all mb-2 ${
-                        isCompleted
-                          ? "bg-green-500 border-green-500 text-white"
-                          : isActive
-                            ? `${step.color} border-transparent text-white`
-                            : "bg-white border-gray-300 text-gray-400"
-                      }`}
-                    >
-                      {isCompleted ? <Check className="h-5 w-5" /> : <StepIcon className="h-5 w-5" />}
+                  <div key={step.id} className="flex items-center flex-1">
+                    <div className="flex flex-col items-center">
+                      <div
+                        className={`flex items-center justify-center w-12 h-12 rounded-full border-2 transition-all ${
+                          isCompleted
+                            ? "bg-green-500 border-green-500 text-white"
+                            : isActive
+                              ? `${step.color} border-transparent text-white`
+                              : "bg-white border-gray-300 text-gray-400"
+                        }`}
+                      >
+                        {isCompleted ? <Check className="h-6 w-6" /> : <StepIcon className="h-6 w-6" />}
+                      </div>
+                      <div className="mt-2 text-center">
+                        <p className={`text-sm font-medium ${isCurrent ? "text-gray-900" : "text-gray-500"}`}>
+                          {step.title}
+                        </p>
+                        <p className="text-xs text-gray-400">{step.subtitle}</p>
+                      </div>
                     </div>
-                    <div className="text-center">
-                      <p className={`text-xs font-medium ${isCurrent ? "text-gray-900" : "text-gray-500"}`}>
-                        {step.title}
-                      </p>
-                      <p className="text-xs text-gray-400">{step.subtitle}</p>
-                    </div>
+                    {index < steps.length - 1 && (
+                      <div
+                        className={`flex-1 h-0.5 mx-4 mt-6 ${
+                          index < currentStepIndex
+                            ? "bg-green-500"
+                            : index === currentStepIndex
+                              ? step.color.replace("bg-", "bg-")
+                              : "bg-gray-300"
+                        }`}
+                      />
+                    )}
                   </div>
                 )
               })}
             </div>
           </div>
-
-          {/* Desktop: Full width */}
-          <div className="hidden sm:flex items-center justify-between">
-            {steps.map((step, index) => {
-              const StepIcon = step.icon
-              const isActive = index <= currentStepIndex
-              const isCurrent = index === currentStepIndex
-              const isCompleted = index < currentStepIndex
-
-              return (
-                <div key={step.id} className="flex items-center flex-1">
-                  <div className="flex flex-col items-center">
-                    <div
-                      className={`flex items-center justify-center w-12 h-12 rounded-full border-2 transition-all ${
-                        isCompleted
-                          ? "bg-green-500 border-green-500 text-white"
-                          : isActive
-                            ? `${step.color} border-transparent text-white`
-                            : "bg-white border-gray-300 text-gray-400"
-                      }`}
-                    >
-                      {isCompleted ? <Check className="h-6 w-6" /> : <StepIcon className="h-6 w-6" />}
-                    </div>
-                    <div className="mt-2 text-center">
-                      <p className={`text-sm font-medium ${isCurrent ? "text-gray-900" : "text-gray-500"}`}>
-                        {step.title}
-                      </p>
-                      <p className="text-xs text-gray-400">{step.subtitle}</p>
-                    </div>
-                  </div>
-                  {index < steps.length - 1 && (
-                    <div
-                      className={`flex-1 h-0.5 mx-4 mt-6 ${
-                        index < currentStepIndex
-                          ? "bg-green-500"
-                          : index === currentStepIndex
-                            ? step.color.replace("bg-", "bg-")
-                            : "bg-gray-300"
-                      }`}
-                    />
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           {/* Main Content */}
@@ -502,16 +570,47 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
               <CardHeader className={`${steps[currentStepIndex]?.color || "bg-blue-600"} text-white rounded-t-lg`}>
                 <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                   <Sparkles className="h-5 w-5 sm:h-6 sm:w-6" />
-                  {currentStep === "personal" && "Personal Information"}
-                  {currentStep === "account" && "Account Setup"}
-                  {currentStep === "address" && "Address Information"}
-                  {currentStep === "payment" && "Payment Method"}
-                  {currentStep === "confirmation" && "Order Confirmation"}
+                  {session?.user ? (
+                    "Complete Your Purchase"
+                  ) : (
+                    <>
+                      {currentStep === "personal" && "Personal Information"}
+                      {currentStep === "account" && "Account Setup"}
+                      {currentStep === "address" && "Address Information"}
+                      {currentStep === "payment" && "Payment Method"}
+                      {currentStep === "confirmation" && "Order Confirmation"}
+                    </>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 sm:p-6 lg:p-8">
-                {/* Personal Information Step */}
-                {currentStep === "personal" && (
+                {/* Show user info for logged-in users */}
+                {session?.user && currentStep === "payment" && (
+                  <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h3 className="text-lg font-semibold text-blue-900 mb-2">Account Information</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <span className="font-medium">Name:</span> {session.user.name}
+                      </div>
+                      <div>
+                        <span className="font-medium">Email:</span> {session.user.email}
+                      </div>
+                      {session.user.phone && (
+                        <div>
+                          <span className="font-medium">Phone:</span> {session.user.phone}
+                        </div>
+                      )}
+                      {session.user.country && (
+                        <div>
+                          <span className="font-medium">Country:</span> {session.user.country}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Personal Information Step - Only for guest users */}
+                {!session?.user && currentStep === "personal" && (
                   <div className="space-y-4 sm:space-y-6">
                     <div className="text-center mb-4 sm:mb-6">
                       <h3 className="text-lg font-semibold text-gray-900 mb-2">Let's get to know you!</h3>
@@ -616,8 +715,8 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
                   </div>
                 )}
 
-                {/* Account Setup Step */}
-                {currentStep === "account" && (
+                {/* Account Setup Step - Only for guest users */}
+                {!session?.user && currentStep === "account" && (
                   <div className="space-y-4 sm:space-y-6">
                     <div className="text-center mb-4 sm:mb-6">
                       <h3 className="text-lg font-semibold text-gray-900 mb-2">Create Your Account</h3>
@@ -704,8 +803,8 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
                   </div>
                 )}
 
-                {/* Address Step */}
-                {currentStep === "address" && (
+                {/* Address Step - Only for guest users */}
+                {!session?.user && currentStep === "address" && (
                   <div className="space-y-4 sm:space-y-6">
                     <div className="text-center mb-4 sm:mb-6">
                       <h3 className="text-lg font-semibold text-gray-900 mb-2">Where are you located?</h3>
@@ -774,14 +873,16 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
                 {currentStep === "payment" && (
                   <div className="space-y-4 sm:space-y-6">
                     <div className="text-center mb-4 sm:mb-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Choose Payment Method</h3>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Complete Your Payment</h3>
                       <p className="text-sm sm:text-base text-gray-600">
-                        Select your preferred payment method to complete the purchase.
+                        Select payment method and upload payment proof to complete your purchase.
                       </p>
                     </div>
 
+                    {/* Payment Method Selection */}
                     {paymentMethods.length > 0 ? (
                       <div className="space-y-3 sm:space-y-4">
+                        <h4 className="font-semibold text-gray-900">Choose Payment Method</h4>
                         {paymentMethods.map((method) => (
                           <div
                             key={method._id}
@@ -817,6 +918,92 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
                       </div>
                     )}
 
+                    {/* Payment Instructions and QR Code */}
+                    {selectedMethod && (
+                      <div className="bg-gray-50 rounded-xl p-4 sm:p-6">
+                        <h4 className="text-lg font-semibold mb-4 text-gray-900">Payment Instructions</h4>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start mb-6">
+                          <div className="order-2 lg:order-1">
+                            <div className="prose max-w-none">
+                              <p className="text-sm text-gray-600 mb-4">{selectedMethod.instructions}</p>
+                            </div>
+
+                            <div className="bg-white rounded-lg p-3 sm:p-4 border border-gray-200">
+                              <h5 className="font-medium mb-2 text-gray-900 text-sm sm:text-base">Payment Amount:</h5>
+                              <p className="text-2xl font-bold text-blue-600">₹{packageData.price.toFixed(2)}</p>
+                            </div>
+                          </div>
+
+                          <div className="order-1 lg:order-2 flex justify-center">
+                            <div className="relative w-64 h-64 sm:w-72 sm:h-72 bg-white rounded-lg p-2 shadow-sm border border-gray-200">
+                              <Image
+                                src={selectedMethod.qrCodeUrl || "/placeholder.svg"}
+                                alt={`${selectedMethod.name} QR Code`}
+                                fill
+                                className="object-contain p-1"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Payment Proof Upload */}
+                    <div className="space-y-4">
+                      <h4 className="font-semibold text-gray-900">Upload Payment Proof *</h4>
+
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handlePaymentProofChange}
+                          className="hidden"
+                          id="payment-proof"
+                        />
+                        <label htmlFor="payment-proof" className="cursor-pointer">
+                          {paymentProofPreview ? (
+                            <div className="space-y-4">
+                              <div className="relative w-32 h-32 mx-auto">
+                                <Image
+                                  src={paymentProofPreview || "/placeholder.svg"}
+                                  alt="Payment proof preview"
+                                  fill
+                                  className="object-cover rounded-lg"
+                                />
+                              </div>
+                              <p className="text-sm text-gray-600">{paymentProofFile?.name}</p>
+                              <Button type="button" variant="outline" size="sm">
+                                <Upload className="mr-2 h-4 w-4" />
+                                Change Image
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              <FileImage className="h-12 w-12 text-gray-400 mx-auto" />
+                              <div>
+                                <p className="text-lg font-medium text-gray-900">Upload Payment Screenshot</p>
+                                <p className="text-sm text-gray-500">PNG, JPG up to 5MB</p>
+                              </div>
+                              <Button type="button" variant="outline">
+                                <Upload className="mr-2 h-4 w-4" />
+                                Choose File
+                              </Button>
+                            </div>
+                          )}
+                        </label>
+                      </div>
+
+                      <Alert>
+                        <Info className="h-4 w-4" />
+                        <AlertDescription className="text-sm">
+                          Please upload a clear screenshot of your payment confirmation. This helps us verify your
+                          payment quickly.
+                        </AlertDescription>
+                      </Alert>
+                    </div>
+
+                    {/* Terms and Conditions */}
                     <div className="flex items-start space-x-2">
                       <Checkbox
                         id="terms"
@@ -843,43 +1030,50 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
                 )}
 
                 {/* Confirmation Step */}
-                {currentStep === "confirmation" && selectedMethod && (
+                {currentStep === "confirmation" && (
                   <div className="space-y-4 sm:space-y-6">
                     <Alert className="border-green-200 bg-green-50">
                       <CheckCircle className="h-4 w-4 text-green-600" />
                       <AlertDescription className="text-green-800 text-sm sm:text-base">
-                        Account created and order placed successfully! Complete the payment to access your courses.
+                        {session?.user
+                          ? "Order placed successfully! Your payment proof has been uploaded."
+                          : "Account created and order placed successfully! Your payment proof has been uploaded."}
                       </AlertDescription>
                     </Alert>
 
                     <div className="bg-gray-50 rounded-xl p-4 sm:p-6">
-                      <h3 className="text-lg font-semibold mb-4 text-gray-900">Pay via {selectedMethod.name}</h3>
+                      <h3 className="text-lg font-semibold mb-4 text-gray-900">What's Next?</h3>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 items-center">
-                        <div className="order-2 md:order-1">
-                          <div className="prose max-w-none">
-                            <p className="text-sm text-gray-600 mb-4">{selectedMethod.instructions}</p>
+                      <div className="space-y-4">
+                        <div className="flex items-start gap-3">
+                          <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <span className="text-xs font-bold text-blue-600">1</span>
                           </div>
-
-                          <div className="bg-white rounded-lg p-3 sm:p-4 border border-gray-200">
-                            <h4 className="font-medium mb-2 text-gray-900 text-sm sm:text-base">Next Steps:</h4>
-                            <ol className="text-xs sm:text-sm text-gray-600 space-y-1">
-                              <li>1. Complete the payment using the QR code</li>
-                              <li>2. Upload payment proof on the next page</li>
-                              <li>3. Wait for verification (usually within 24 hours)</li>
-                              <li>4. Access your courses once approved</li>
-                            </ol>
+                          <div>
+                            <h4 className="font-medium text-gray-900">Payment Verification</h4>
+                            <p className="text-sm text-gray-600">Our team will verify your payment within 24 hours.</p>
                           </div>
                         </div>
 
-                        <div className="order-1 md:order-2 flex justify-center">
-                          <div className="relative w-40 h-40 sm:w-48 sm:h-48 bg-white rounded-lg p-3 sm:p-4 shadow-sm border border-gray-200">
-                            <Image
-                              src={selectedMethod.qrCodeUrl || "/placeholder.svg"}
-                              alt={`${selectedMethod.name} QR Code`}
-                              fill
-                              className="object-contain p-2"
-                            />
+                        <div className="flex items-start gap-3">
+                          <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <span className="text-xs font-bold text-blue-600">2</span>
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900">Course Access</h4>
+                            <p className="text-sm text-gray-600">
+                              Once verified, you'll get instant access to all courses in your package.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-3">
+                          <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <span className="text-xs font-bold text-blue-600">3</span>
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900">Start Learning</h4>
+                            <p className="text-sm text-gray-600">Begin your learning journey and start earning!</p>
                           </div>
                         </div>
                       </div>
@@ -888,15 +1082,15 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
                     <Alert>
                       <Info className="h-4 w-4" />
                       <AlertDescription className="text-sm sm:text-base">
-                        After payment, upload proof to complete your purchase. Courses will be available after
-                        verification.
+                        You'll receive an email confirmation once your payment is verified. Check your dashboard for
+                        course access.
                       </AlertDescription>
                     </Alert>
                   </div>
                 )}
               </CardContent>
               <CardFooter className="border-t border-gray-200 p-4 sm:p-6 flex flex-col sm:flex-row gap-3">
-                {currentStep !== "personal" && currentStep !== "confirmation" && (
+                {currentStep !== "personal" && currentStep !== "confirmation" && !session?.user && (
                   <Button variant="outline" onClick={handlePreviousStep} className="w-full sm:flex-1 h-11 sm:h-12">
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Previous
@@ -909,9 +1103,13 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
                     className="w-full sm:flex-1 h-11 sm:h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                   >
                     {isSubmitting ? (
-                      "Creating Account..."
+                      "Processing..."
                     ) : currentStep === "payment" ? (
-                      "Create Account & Order"
+                      session?.user ? (
+                        "Complete Purchase"
+                      ) : (
+                        "Create Account & Complete Purchase"
+                      )
                     ) : (
                       <>
                         Next
@@ -925,10 +1123,7 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
                     asChild
                     className="w-full h-11 sm:h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
                   >
-                    <Link href={`/payment/confirmation/${transactionId}`}>
-                      <Upload className="mr-2 h-4 w-4" />
-                      Upload Payment Proof
-                    </Link>
+                    <Link href="/dashboard">Go to Dashboard</Link>
                   </Button>
                 )}
               </CardFooter>

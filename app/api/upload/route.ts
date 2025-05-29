@@ -69,12 +69,13 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Upload to Cloudinary
+    // Upload to Cloudinary without any cropping transformations
     const result = await cloudinary.uploader.upload(dataURI, {
       folder: `knowledgehubnepal/${folder}`,
       resource_type: "image",
       format: fileType,
-      transformation: [{ width: 1280, height: 720, crop: "limit" }, { quality: "auto:good" }, { fetch_format: "auto" }],
+      // Remove all transformations that could cause cropping
+      transformation: [{ quality: "auto:good" }, { fetch_format: "auto" }],
     })
 
     return NextResponse.json({

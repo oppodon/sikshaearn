@@ -47,14 +47,15 @@ export async function POST(req: NextRequest) {
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
-    // Upload to Cloudinary
+    // Upload to Cloudinary without any cropping transformations
     const result = await new Promise((resolve, reject) => {
       cloudinary.uploader
         .upload_stream(
           {
             folder: `knowledgehub/${folder}`,
             resource_type: "image",
-            transformation: [{ width: 1280, height: 720, crop: "fill", quality: "auto" }, { format: "webp" }],
+            // Remove all transformations that could cause cropping
+            transformation: [{ quality: "auto" }, { fetch_format: "auto" }],
           },
           (error, result) => {
             if (error) reject(error)

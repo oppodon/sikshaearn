@@ -27,7 +27,7 @@ export function ImageUpload({
   className,
   label = "Upload Image",
   description = "Drag and drop or click to upload",
-  aspectRatio = "video",
+  aspectRatio = "auto", // Changed default to auto to prevent cropping
 }: ImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false)
   const [dragActive, setDragActive] = useState(false)
@@ -133,7 +133,7 @@ export function ImageUpload({
       case "square":
         return "aspect-square"
       default:
-        return "aspect-auto"
+        return "aspect-auto" // Use auto to prevent cropping
     }
   }
 
@@ -145,7 +145,8 @@ export function ImageUpload({
         {value ? (
           <div className="relative">
             <div className={cn("relative overflow-hidden rounded-md border bg-muted", getAspectRatioClass())}>
-              <img src={value || "/placeholder.svg"} alt="Uploaded image" className="object-cover w-full h-full" />
+              {/* Use object-contain instead of object-cover to prevent cropping */}
+              <img src={value || "/placeholder.svg"} alt="Uploaded image" className="object-contain w-full h-full" />
               <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
                 <Button type="button" variant="destructive" size="sm" onClick={removeImage} className="gap-2">
                   <X className="h-4 w-4" />
@@ -195,10 +196,7 @@ export function ImageUpload({
       </div>
 
       {description && !value && (
-        <p className="text-xs text-muted-foreground">
-          Recommended size:{" "}
-          {aspectRatio === "video" ? "1280x720px (16:9)" : aspectRatio === "square" ? "400x400px" : "Auto"}
-        </p>
+        <p className="text-xs text-muted-foreground">Image will be uploaded in its original size and aspect ratio</p>
       )}
     </div>
   )
