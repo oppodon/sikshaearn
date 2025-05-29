@@ -23,13 +23,11 @@ const TransactionSchema = new Schema<TransactionDocument>(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true,
     },
     package: {
       type: Schema.Types.ObjectId,
       ref: "Package",
       required: true,
-      index: true,
     },
     amount: {
       type: Number,
@@ -48,13 +46,11 @@ const TransactionSchema = new Schema<TransactionDocument>(
       type: String,
       enum: ["pending", "pending_verification", "completed", "rejected"],
       default: "pending",
-      index: true,
     },
     affiliateId: {
       type: Schema.Types.ObjectId,
       ref: "User",
       default: null,
-      index: true,
     },
     affiliateCommission: {
       type: Number,
@@ -65,7 +61,6 @@ const TransactionSchema = new Schema<TransactionDocument>(
       type: Schema.Types.ObjectId,
       ref: "User",
       default: null,
-      index: true,
     },
     tier2Commission: {
       type: Number,
@@ -86,10 +81,14 @@ const TransactionSchema = new Schema<TransactionDocument>(
   },
 )
 
-// Indexes for better query performance
+// Create indexes using schema.index() only (removed index: true from field definitions)
 TransactionSchema.index({ user: 1, createdAt: -1 })
 TransactionSchema.index({ status: 1, createdAt: -1 })
 TransactionSchema.index({ affiliateId: 1, status: 1 })
+TransactionSchema.index({ package: 1 })
+TransactionSchema.index({ user: 1 })
+TransactionSchema.index({ affiliateId: 1 })
+TransactionSchema.index({ tier2AffiliateId: 1 })
 
 const Transaction = mongoose.models.Transaction || mongoose.model<TransactionDocument>("Transaction", TransactionSchema)
 

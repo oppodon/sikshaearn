@@ -18,7 +18,29 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { ArrowLeft, CheckCircle, AlertCircle, Info, Users, CreditCard, Upload, Clock, Shield, ArrowRight, Check, X, User, Mail, MapPin, Eye, EyeOff, Sparkles, Phone, Home, FileImage } from 'lucide-react'
+import {
+  ArrowLeft,
+  CheckCircle,
+  AlertCircle,
+  Info,
+  Users,
+  CreditCard,
+  Upload,
+  Clock,
+  Shield,
+  ArrowRight,
+  Check,
+  X,
+  User,
+  Mail,
+  MapPin,
+  Eye,
+  EyeOff,
+  Sparkles,
+  Phone,
+  Home,
+  FileImage,
+} from "lucide-react"
 
 interface Package {
   _id: string
@@ -345,6 +367,7 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
 
       // For guest users, register first
       if (!session?.user) {
+        console.log("🔄 Registering new user...")
         const registerResponse = await fetch("/api/auth/register", {
           method: "POST",
           headers: {
@@ -368,29 +391,39 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
         if (!registerResponse.ok) {
           throw new Error(registerResult.error || "Failed to create account")
         }
+        console.log("✅ User registered successfully")
       }
 
       // Create transaction with payment proof
+      console.log("🔄 Creating transaction...")
       const formData = new FormData()
       formData.append("packageId", packageData._id)
       formData.append("amount", packageData.price.toString())
       formData.append("paymentMethodId", selectedPaymentMethod)
       formData.append("paymentProof", paymentProofFile)
 
-      if (!session?.user) {
+      // Always include email for user lookup (as a fallback)
+      if (session?.user) {
+        formData.append("userEmail", session.user.email)
+        console.log("📧 Using authenticated user email as fallback:", session.user.email)
+      } else if (userFormData.email) {
         formData.append("userEmail", userFormData.email)
+        console.log("📧 Using form email for user lookup:", userFormData.email)
       }
 
       if (appliedReferral) {
         formData.append("referralCode", appliedReferral)
       }
 
+      console.log("📤 Sending transaction request...")
       const transactionResponse = await fetch("/api/transactions", {
         method: "POST",
         body: formData,
       })
 
+      console.log("📥 Transaction response status:", transactionResponse.status)
       const transactionData = await transactionResponse.json()
+      console.log("📥 Transaction response data:", transactionData)
 
       if (!transactionResponse.ok) {
         throw new Error(transactionData.error || "Failed to create transaction")
@@ -404,7 +437,7 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
         description: "Your payment proof has been uploaded. We'll verify it within 24 hours.",
       })
     } catch (error: any) {
-      console.error("Error creating order:", error)
+      console.error("❌ Error creating order:", error)
       toast({
         title: "Order Creation Failed",
         description: error.message || "Failed to create order. Please try again.",

@@ -53,10 +53,9 @@ export async function uploadToCloudinary(buffer: ArrayBuffer, path: string, mime
 
     // Upload to Cloudinary without any cropping transformations
     const result = await cloudinary.uploader.upload(dataURI, {
-      folder: `knowledgehubnepal/${path.split("/")[0]}`,
+      folder: `knowledgehubnepal/${path.split("/")[0]}`, // This should be just the folder name
       resource_type: "auto",
-      public_id: path,
-      // Remove all transformations that could cause cropping
+      // Remove the public_id to let Cloudinary generate a unique one
       transformation: [{ quality: "auto:good" }, { fetch_format: "auto" }],
     })
 
