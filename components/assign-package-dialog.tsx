@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 
@@ -31,6 +32,7 @@ interface AssignPackageDialogProps {
 export function AssignPackageDialog({ open, onOpenChange, userId }: AssignPackageDialogProps) {
   const [packages, setPackages] = useState<Package[]>([])
   const [selectedPackage, setSelectedPackage] = useState<string>("")
+  const [referralCode, setReferralCode] = useState<string>("")
   const [loading, setLoading] = useState(false)
   const [fetchingPackages, setFetchingPackages] = useState(false)
 
@@ -74,6 +76,7 @@ export function AssignPackageDialog({ open, onOpenChange, userId }: AssignPackag
         body: JSON.stringify({
           userId,
           packageId: selectedPackage,
+          referralCode: referralCode.trim() || undefined, // Only include if not empty
         }),
       })
 
@@ -81,6 +84,7 @@ export function AssignPackageDialog({ open, onOpenChange, userId }: AssignPackag
         toast.success("Package assigned successfully")
         onOpenChange(false)
         setSelectedPackage("")
+        setReferralCode("")
         // Refresh the page to show updated data
         window.location.reload()
       } else {
@@ -126,6 +130,16 @@ export function AssignPackageDialog({ open, onOpenChange, userId }: AssignPackag
                 </SelectContent>
               </Select>
             )}
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="referralCode">Referral Code (Optional)</Label>
+            <Input
+              id="referralCode"
+              placeholder="Enter referral code"
+              value={referralCode}
+              onChange={(e) => setReferralCode(e.target.value)}
+            />
           </div>
         </div>
         <DialogFooter>

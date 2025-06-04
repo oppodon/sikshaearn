@@ -51,20 +51,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Please enter a valid email address" }, { status: 400 })
     }
 
-    if (password.length < 8) {
-      return NextResponse.json({ error: "Password must be at least 8 characters long" }, { status: 400 })
-    }
-
-    // Password strength validation
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).*$/
-    if (!passwordRegex.test(password)) {
-      return NextResponse.json(
-        {
-          error: "Password must contain at least one uppercase letter, one lowercase letter, and one number",
-        },
-        { status: 400 },
-      )
-    }
+    // Removed password validation - allowing any password format
 
     // Validate profile image if provided
     if (profileImageFile && profileImageFile.size > 0) {
