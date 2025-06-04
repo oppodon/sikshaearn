@@ -186,6 +186,98 @@ function ModernProfileHeader({ user, userPackages }: { user: any; userPackages: 
   )
 }
 
+// User Packages Section
+function UserPackagesSection({ userPackages }: { userPackages: any[] }) {
+  if (userPackages.length === 0) {
+    return null
+  }
+
+  return (
+    <Card className="shadow-2xl border-0 bg-white/90 backdrop-blur-xl overflow-hidden">
+      <CardHeader className="border-b border-gray-100 bg-gradient-to-r from-gray-50 to-purple-50 p-6">
+        <CardTitle className="flex items-center gap-3 text-gray-900 text-2xl">
+          <div className="p-3 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 shadow-lg">
+            <Package className="h-6 w-6 text-white" />
+          </div>
+          My Packages
+          <Badge className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white border-0">
+            {userPackages.length} Active
+          </Badge>
+        </CardTitle>
+        <CardDescription className="text-gray-600 text-base">Your enrolled packages and benefits</CardDescription>
+      </CardHeader>
+      <CardContent className="p-6">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          {userPackages.map((userPackage: any) => (
+            <Card
+              key={userPackage._id}
+              className="group relative overflow-hidden border-2 border-purple-100 hover:border-purple-300 transition-all duration-300 hover:shadow-lg"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-indigo-50 opacity-50"></div>
+              <CardContent className="p-4 relative z-10">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <h3 className="font-bold text-gray-900 text-lg mb-1">{userPackage.package?.title || "Package"}</h3>
+                    <p className="text-sm text-gray-600 line-clamp-2">
+                      {userPackage.package?.description || "No description available"}
+                    </p>
+                  </div>
+                  <Badge
+                    className={`ml-2 ${
+                      userPackage.isActive
+                        ? "bg-green-100 text-green-800 border-green-200"
+                        : "bg-gray-100 text-gray-800 border-gray-200"
+                    }`}
+                  >
+                    {userPackage.isActive ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Enrolled:</span>
+                    <span className="font-medium">{new Date(userPackage.startDate).toLocaleDateString()}</span>
+                  </div>
+
+                  {userPackage.endDate && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Expires:</span>
+                      <span className="font-medium">{new Date(userPackage.endDate).toLocaleDateString()}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Courses:</span>
+                    <span className="font-medium">{userPackage.courses?.length || 0} courses</span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Progress:</span>
+                    <span className="font-medium">{userPackage.progress || 0}%</span>
+                  </div>
+                </div>
+
+                <div className="mt-3">
+                  <Progress value={userPackage.progress || 0} className="h-2" />
+                </div>
+
+                <Button
+                  asChild
+                  className="w-full mt-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
+                >
+                  <Link href={`/packages/${userPackage.package?._id || userPackage.package}/courses`}>
+                    View Courses
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 // Modern Compact Earnings Card with Counter
 function ModernEarningsCard({
   title,
@@ -343,10 +435,10 @@ function ModernCourseCard({ course }: { course: any }) {
               {course.title}
             </h3>
 
-            {course.packageName && (
+            {course.packageTitle && (
               <div className="flex items-center gap-2 p-3 rounded-xl bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200">
                 <Package className="h-4 w-4 text-purple-500" />
-                <span className="text-sm text-purple-700 font-semibold">{course.packageName}</span>
+                <span className="text-sm text-purple-700 font-semibold">{course.packageTitle}</span>
               </div>
             )}
 
@@ -457,7 +549,10 @@ export default function ModernDashboardPage() {
       const response = await fetch(`/api/admin/users/${session?.user?.id}/packages`)
       if (response.ok) {
         const data = await response.json()
+        console.log("User packages data:", data)
         setUserPackages(data.packages || [])
+      } else {
+        console.error("Failed to fetch user packages:", response.status)
       }
     } catch (error) {
       console.error("Error fetching user packages:", error)
@@ -533,28 +628,28 @@ export default function ModernDashboardPage() {
             title: "Advanced React Development Masterclass",
             thumbnail: "/placeholder.svg?height=200&width=400",
             progress: 75,
-            packageName: "Full Stack Developer Bundle",
+            packageTitle: "Full Stack Developer Bundle",
           },
           {
             _id: "2",
             title: "Node.js Backend Development",
             thumbnail: "/placeholder.svg?height=200&width=400",
             progress: 45,
-            packageName: "Backend Developer Package",
+            packageTitle: "Backend Developer Package",
           },
           {
             _id: "3",
             title: "Modern UI/UX Design Principles",
             thumbnail: "/placeholder.svg?height=200&width=400",
             progress: 100,
-            packageName: "Design Mastery Suite",
+            packageTitle: "Design Mastery Suite",
           },
           {
             _id: "4",
             title: "Digital Marketing & SEO",
             thumbnail: "/placeholder.svg?height=200&width=400",
             progress: 0,
-            packageName: "Marketing Pro Bundle",
+            packageTitle: "Marketing Pro Bundle",
           },
         ])
       }
@@ -567,14 +662,14 @@ export default function ModernDashboardPage() {
           title: "Advanced React Development Masterclass",
           thumbnail: "/placeholder.svg?height=200&width=400",
           progress: 75,
-          packageName: "Full Stack Developer Bundle",
+          packageTitle: "Full Stack Developer Bundle",
         },
         {
           _id: "2",
           title: "Node.js Backend Development",
           thumbnail: "/placeholder.svg?height=200&width=400",
           progress: 45,
-          packageName: "Backend Developer Package",
+          packageTitle: "Backend Developer Package",
         },
       ])
     } finally {
@@ -622,6 +717,9 @@ export default function ModernDashboardPage() {
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* Modern Profile Header */}
         <ModernProfileHeader user={session.user} userPackages={userPackages} />
+
+        {/* User Packages Section */}
+        <UserPackagesSection userPackages={userPackages} />
 
         {/* Modern Compact Earnings Cards with Counter Animation */}
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
