@@ -89,7 +89,7 @@ function ModernAnimatedBackground() {
 }
 
 // Modern Profile Header Card
-function ModernProfileHeader({ user }: { user: any }) {
+function ModernProfileHeader({ user, userPackages }: { user: any; userPackages: any[] }) {
   const [memberSince, setMemberSince] = useState("Jan 2024")
 
   useEffect(() => {
@@ -99,6 +99,9 @@ function ModernProfileHeader({ user }: { user: any }) {
       setMemberSince(monthYear)
     }
   }, [user])
+
+  // Get the most recent active package
+  const activePackage = userPackages.find((pkg) => pkg.isActive) || userPackages[0]
 
   return (
     <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 text-white shadow-2xl h-40">
@@ -150,10 +153,17 @@ function ModernProfileHeader({ user }: { user: any }) {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white mb-1">{user?.name || "User"}</h1>
-              <Badge className="bg-gradient-to-r from-cyan-400 to-blue-500 text-white border-0 px-3 py-1 text-xs font-semibold shadow-lg">
-                <Crown className="h-3 w-3 mr-1" />
-                Pro Package
-              </Badge>
+              {activePackage ? (
+                <Badge className="bg-gradient-to-r from-cyan-400 to-blue-500 text-white border-0 px-3 py-1 text-xs font-semibold shadow-lg">
+                  <Crown className="h-3 w-3 mr-1" />
+                  {activePackage.package?.title || "Active Package"}
+                </Badge>
+              ) : (
+                <Badge className="bg-gradient-to-r from-gray-400 to-gray-500 text-white border-0 px-3 py-1 text-xs font-semibold shadow-lg">
+                  <Package className="h-3 w-3 mr-1" />
+                  No Package
+                </Badge>
+              )}
             </div>
           </div>
           <div className="hidden md:flex items-center gap-3">
@@ -424,6 +434,7 @@ function ModernLoadingSkeleton() {
 export default function ModernDashboardPage() {
   const { data: session, status } = useSession()
   const [enrolledCourses, setEnrolledCourses] = useState([])
+  const [userPackages, setUserPackages] = useState([])
   const [userStats, setUserStats] = useState({
     todayEarning: 0,
     last7DaysEarning: 0,
@@ -437,8 +448,21 @@ export default function ModernDashboardPage() {
     if (status === "authenticated") {
       fetchUserStats()
       fetchEnrolledCourses()
+      fetchUserPackages()
     }
   }, [status])
+
+  const fetchUserPackages = async () => {
+    try {
+      const response = await fetch(`/api/admin/users/${session?.user?.id}/packages`)
+      if (response.ok) {
+        const data = await response.json()
+        setUserPackages(data.packages || [])
+      }
+    } catch (error) {
+      console.error("Error fetching user packages:", error)
+    }
+  }
 
   const fetchUserStats = async () => {
     try {
@@ -597,7 +621,7 @@ export default function ModernDashboardPage() {
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* Modern Profile Header */}
-        <ModernProfileHeader user={session.user} />
+        <ModernProfileHeader user={session.user} userPackages={userPackages} />
 
         {/* Modern Compact Earnings Cards with Counter Animation */}
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">

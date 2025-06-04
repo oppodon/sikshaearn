@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Users, BookOpen, DollarSign, FileText, TrendingUp, CheckCircle, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
+import Image from "next/image"
 
 interface DashboardStats {
   userStats: {
@@ -101,7 +102,9 @@ export default function AdminDashboard() {
 
   return (
     <div className="container mx-auto py-10">
-      <h1 className="text-3xl font-bold mb-2">Welcome back, Admin</h1>
+      <div className="flex items-center mb-2">
+        <Image src="/logo.png" alt="SikshaEarn" width={200} height={60} className="h-12 w-auto" />
+      </div>
       <p className="text-muted-foreground mb-8">Here's an overview of your platform performance and recent activity</p>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">

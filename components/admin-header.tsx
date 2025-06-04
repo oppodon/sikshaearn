@@ -19,6 +19,7 @@ import { Bell, Menu, Moon, Search, Sun, User, Settings, ExternalLink } from "luc
 import { useTheme } from "next-themes"
 import { useAdminSidebar } from "@/components/admin/admin-sidebar"
 import { useSession, signOut } from "next-auth/react"
+import Image from "next/image"
 
 export function AdminHeader() {
   const pathname = usePathname()
@@ -30,7 +31,7 @@ export function AdminHeader() {
   // Get page title from pathname
   const getPageTitle = () => {
     const segments = pathname.split("/").filter(Boolean)
-    if (segments.length === 1 && segments[0] === "admin") return "Dashboard"
+    if (segments.length === 1 && segments[0] === "admin") return ""
     if (segments.length > 1) {
       const pageName = segments[1]
       return pageName.charAt(0).toUpperCase() + pageName.slice(1)
@@ -48,7 +49,11 @@ export function AdminHeader() {
 
       {/* Page Title */}
       <div className="flex-1">
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{getPageTitle()}</h1>
+        {pathname === "/admin" ? (
+          <Image src="/logo.png" alt="SikshaEarn" width={150} height={40} className="h-8 w-auto" />
+        ) : (
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{getPageTitle()}</h1>
+        )}
       </div>
 
       {/* Header Actions */}

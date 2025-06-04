@@ -20,11 +20,10 @@ export default function Navbar() {
             <Image
               src="/logo.png"
               alt="SikshaEarn Logo"
-              width={150}
-              height={80}
+              width={40}
+              height={40}
               className="w-8 h-8 sm:w-10 sm:h-10 object-contain"
             />
-            
           </div>
           <div className="flex items-center">
             <span className="text-lg sm:text-2xl font-bold font-montserrat tracking-tight text-gray-900">

@@ -40,6 +40,7 @@ import {
   Phone,
   Home,
   FileImage,
+  Camera,
 } from "lucide-react"
 
 interface Package {
@@ -78,6 +79,7 @@ interface UserFormData {
   city: string
   address: string
   agreeToTerms: boolean
+  profileImage?: File
 }
 
 type CheckoutStep = "personal" | "account" | "address" | "payment" | "confirmation"
@@ -100,6 +102,9 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null)
   const [paymentProofPreview, setPaymentProofPreview] = useState<string | null>(null)
   const [isUploadingProof, setIsUploadingProof] = useState(false)
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null)
+  const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null)
+  const [registrationError, setRegistrationError] = useState<string | null>(null)
 
   // Form data
   const [userFormData, setUserFormData] = useState<UserFormData>({
@@ -242,11 +247,49 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
     }
   }
 
-  const updateFormData = (field: keyof UserFormData, value: string | boolean) => {
+  const updateFormData = (field: keyof UserFormData, value: string | boolean | File) => {
     setUserFormData((prev) => ({
       ...prev,
       [field]: value,
     }))
+    // Clear registration error when user starts typing
+    if (registrationError) {
+      setRegistrationError(null)
+    }
+  }
+
+  const handleProfileImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        // 5MB limit
+        toast({
+          title: "File too large",
+          description: "Please select a file smaller than 5MB.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (!file.type.startsWith("image/")) {
+        toast({
+          title: "Invalid file type",
+          description: "Please select an image file.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      setProfileImageFile(file)
+      updateFormData("profileImage", file)
+
+      // Create preview
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setProfileImagePreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
   }
 
   const handlePaymentProofChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -364,32 +407,53 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
 
     try {
       setIsSubmitting(true)
+      setRegistrationError(null)
 
       // For guest users, register first
       if (!session?.user) {
         console.log("🔄 Registering new user...")
+        const registerFormData = new FormData()
+        registerFormData.append("name", `${userFormData.firstName} ${userFormData.lastName}`)
+        registerFormData.append("email", userFormData.email)
+        registerFormData.append("password", userFormData.password)
+        registerFormData.append("phone", userFormData.phone)
+        registerFormData.append("country", userFormData.country)
+        registerFormData.append("city", userFormData.city)
+        registerFormData.append("address", userFormData.address)
+        registerFormData.append("skipEmailVerification", "true")
+
+        if (appliedReferral) {
+          registerFormData.append("referralCode", appliedReferral)
+        }
+
+        if (profileImageFile) {
+          registerFormData.append("profileImage", profileImageFile)
+        }
+
         const registerResponse = await fetch("/api/auth/register", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: `${userFormData.firstName} ${userFormData.lastName}`,
-            email: userFormData.email,
-            password: userFormData.password,
-            phone: userFormData.phone,
-            country: userFormData.country,
-            city: userFormData.city,
-            address: userFormData.address,
-            referralCode: appliedReferral,
-            skipEmailVerification: true,
-          }),
+          body: registerFormData,
         })
 
         const registerResult = await registerResponse.json()
 
         if (!registerResponse.ok) {
-          throw new Error(registerResult.error || "Failed to create account")
+          // Set the specific error message from the API
+          setRegistrationError(registerResult.error || "Failed to create account")
+
+          // Show toast with the error
+          toast({
+            title: "Account Creation Failed",
+            description: registerResult.error || "Failed to create account. Please try again.",
+            variant: "destructive",
+          })
+
+          // If it's an email already exists error, go back to account step
+          if (registerResult.error?.toLowerCase().includes("email")) {
+            setCurrentStep("account")
+          }
+
+          return
         }
         console.log("✅ User registered successfully")
       }
@@ -617,6 +681,14 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 sm:p-6 lg:p-8">
+                {/* Show registration error if exists */}
+                {registrationError && (
+                  <Alert variant="destructive" className="mb-6">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{registrationError}</AlertDescription>
+                  </Alert>
+                )}
+
                 {/* Show user info for logged-in users */}
                 {session?.user && currentStep === "payment" && (
                   <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
@@ -650,6 +722,38 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
                       <p className="text-sm sm:text-base text-gray-600">
                         We'll need some basic information to get started.
                       </p>
+                    </div>
+
+                    {/* Profile Image Upload */}
+                    <div className="flex flex-col items-center space-y-4">
+                      <div className="relative">
+                        <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-100 border-4 border-white shadow-lg">
+                          {profileImagePreview ? (
+                            <img
+                              src={profileImagePreview || "/placeholder.svg"}
+                              alt="Profile preview"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-400 to-purple-600">
+                              <User className="h-12 w-12 text-white" />
+                            </div>
+                          )}
+                        </div>
+                        <label htmlFor="profile-image" className="absolute -bottom-2 -right-2 cursor-pointer">
+                          <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center shadow-lg hover:bg-blue-700 transition-colors">
+                            <Camera className="h-4 w-4 text-white" />
+                          </div>
+                          <input
+                            id="profile-image"
+                            type="file"
+                            accept="image/*"
+                            onChange={handleProfileImageChange}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                      <p className="text-xs text-gray-500 text-center">Upload your profile picture (optional)</p>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
@@ -763,7 +867,7 @@ export default function CheckoutPage({ params }: { params: { id: string } }) {
                         Email Address *
                       </Label>
                       <div className="relative mt-1">
-                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Mail className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                         <Input
                           id="email"
                           type="email"
