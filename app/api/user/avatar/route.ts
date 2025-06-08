@@ -1,64 +1,94 @@
-import { NextResponse, type NextRequest } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import dbConnect from "@/lib/mongodb"
 import User from "@/models/User"
 import { uploadImage } from "@/lib/cloudinary"
 
-// POST /api/user/avatar - Upload user avatar
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
-    if (!session || !session.user) {
+    const formData = await req.formData()
+    const file = formData.get("avatar") as File
+
+    if (!file) {
+      return NextResponse.json({ error: "No file provided" }, { status: 400 })
+    }
+
+    // Validate file type
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
+    if (!allowedTypes.includes(file.type)) {
+      return NextResponse.json(
+        { error: "Invalid file type. Please upload a JPEG, PNG, or WebP image." },
+        { status: 400 },
+      )
+    }
+
+    // Validate file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024 // 5MB
+    if (file.size > maxSize) {
+      return NextResponse.json({ error: "File too large. Please upload an image smaller than 5MB." }, { status: 400 })
+    }
+
+    await dbConnect()
+
+    // Upload to Cloudinary
+    const uploadResult = await uploadImage(file, "user-avatars")
+
+    // Update user in database
+    const updatedUser = await User.findByIdAndUpdate(session.user.id, { image: uploadResult.url }, { new: true })
+
+    if (!updatedUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
+    return NextResponse.json({
+      message: "Avatar updated successfully",
+      imageUrl: uploadResult.url,
+      user: {
+        id: updatedUser._id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        image: updatedUser.image,
+      },
+    })
+  } catch (error: any) {
+    console.error("Error uploading avatar:", error)
+    return NextResponse.json({ error: error.message || "Failed to upload avatar" }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     await dbConnect()
 
-    const userId = session.user.id
-    const formData = await req.formData()
-    const file = formData.get("avatar") as File
+    // Remove avatar from user
+    const updatedUser = await User.findByIdAndUpdate(session.user.id, { $unset: { image: 1 } }, { new: true })
 
-    if (!file) {
-      return NextResponse.json({ error: "No image file provided" }, { status: 400 })
-    }
-
-    // Check file type
-    if (!file.type.startsWith("image/")) {
-      return NextResponse.json({ error: "File must be an image" }, { status: 400 })
-    }
-
-    // Check file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      return NextResponse.json({ error: "Image size must be less than 5MB" }, { status: 400 })
-    }
-
-    // Convert file to buffer
-    const buffer = Buffer.from(await file.arrayBuffer())
-
-    // Upload to Cloudinary
-    const result = await uploadImage(buffer, {
-      folder: "user-avatars",
-      public_id: `user-${userId}`,
-      overwrite: true,
-    })
-
-    // Update user's image URL
-    const user = await User.findById(userId)
-    if (!user) {
+    if (!updatedUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    user.image = result.secure_url
-    await user.save()
-
     return NextResponse.json({
-      message: "Avatar uploaded successfully",
-      imageUrl: result.secure_url,
+      message: "Avatar removed successfully",
+      user: {
+        id: updatedUser._id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        image: null,
+      },
     })
   } catch (error: any) {
-    console.error("Error uploading avatar:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error("Error removing avatar:", error)
+    return NextResponse.json({ error: error.message || "Failed to remove avatar" }, { status: 500 })
   }
 }

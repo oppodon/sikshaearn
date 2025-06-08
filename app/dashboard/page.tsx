@@ -142,7 +142,11 @@ function ModernProfileHeader({ user, userPackages }: { user: any; userPackages: 
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-white/10 rounded-full blur-lg"></div>
               <Avatar className="h-16 w-16 border-4 border-white/30 shadow-2xl relative z-10">
-                <AvatarImage src={user?.image || "/placeholder.svg?height=64&width=64"} alt={user?.name} />
+                <AvatarImage
+                  src={user?.image || "/placeholder.svg?height=64&width=64"}
+                  alt={user?.name || "User"}
+                  className="object-cover"
+                />
                 <AvatarFallback className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-xl font-bold">
                   {user?.name?.charAt(0) || "U"}
                 </AvatarFallback>
@@ -710,6 +714,7 @@ export default function ModernDashboardPage() {
     )
   }
 
+  // Reorder the components in the return statement to place packages below earnings cards
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50 relative">
       <ModernAnimatedBackground />
@@ -717,9 +722,6 @@ export default function ModernDashboardPage() {
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* Modern Profile Header */}
         <ModernProfileHeader user={session.user} userPackages={userPackages} />
-
-        {/* User Packages Section */}
-        <UserPackagesSection userPackages={userPackages} />
 
         {/* Modern Compact Earnings Cards with Counter Animation */}
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
@@ -769,6 +771,9 @@ export default function ModernDashboardPage() {
             trendUp={false}
           />
         </div>
+
+        {/* User Packages Section - Moved below earnings cards */}
+        <UserPackagesSection userPackages={userPackages} />
 
         {/* Quick Actions */}
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">

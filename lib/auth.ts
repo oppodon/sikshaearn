@@ -42,7 +42,6 @@ export const authOptions: NextAuthOptions = {
         await dbConnect()
 
         const user = await User.findOne({ email: credentials.email }).select("+password")
-       
 
         if (!user) {
           throw new Error("No user found with this email")
@@ -112,6 +111,7 @@ export const authOptions: NextAuthOptions = {
           user.role = existingUser.role
           user.name = existingUser.name
           user.email = existingUser.email
+          user.image = existingUser.image
 
           return true
         }
@@ -123,7 +123,8 @@ export const authOptions: NextAuthOptions = {
       }
     },
 
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
+      // Initial sign in
       if (user) {
         token.id = user.id
         token.role = user.role || "user"
@@ -132,6 +133,20 @@ export const authOptions: NextAuthOptions = {
         token.picture = user.image
       }
 
+      // Handle session update trigger (when user updates profile)
+      if (trigger === "update" && session) {
+        if (session.image !== undefined) {
+          token.picture = session.image
+        }
+        if (session.name !== undefined) {
+          token.name = session.name
+        }
+        if (session.email !== undefined) {
+          token.email = session.email
+        }
+      }
+
+      // Refresh user data from database if token doesn't have ID
       if (!token.id && token.email) {
         try {
           await dbConnect()
@@ -140,9 +155,26 @@ export const authOptions: NextAuthOptions = {
             token.id = dbUser._id.toString()
             token.role = dbUser.role
             token.name = dbUser.name
+            token.picture = dbUser.image
           }
         } catch (error) {
           console.error("Error refreshing token:", error)
+        }
+      }
+
+      // Periodically refresh user data from database (every 24 hours)
+      if (token.id && (!token.lastRefresh || Date.now() - token.lastRefresh > 24 * 60 * 60 * 1000)) {
+        try {
+          await dbConnect()
+          const dbUser = await User.findById(token.id).lean()
+          if (dbUser) {
+            token.name = dbUser.name
+            token.picture = dbUser.image
+            token.role = dbUser.role
+            token.lastRefresh = Date.now()
+          }
+        } catch (error) {
+          console.error("Error refreshing user data:", error)
         }
       }
 

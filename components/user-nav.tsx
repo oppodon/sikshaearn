@@ -16,7 +16,7 @@ import Link from "next/link"
 import { User, Settings, LogOut } from "lucide-react"
 
 export function UserNav() {
-  const { data: session } = useSession()
+  const { data: session, update } = useSession()
 
   if (!session?.user) {
     return null
@@ -48,14 +48,22 @@ export function UserNav() {
   }
 
   const userInitials = getInitials(session.user.name || session.user.email?.split("@")[0])
+  const userImage = session.user.image || ""
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={session.user.image || ""} alt={session.user.name || "User"} className="object-cover" />
-            <AvatarFallback className="bg-blue-600 text-white font-semibold text-sm">{userInitials}</AvatarFallback>
+          <Avatar className="h-8 w-8 border border-gray-200">
+            {userImage ? (
+              <AvatarImage
+                src={userImage || "/placeholder.svg"}
+                alt={session.user.name || "User"}
+                className="object-cover"
+              />
+            ) : (
+              <AvatarFallback className="bg-blue-600 text-white font-semibold text-sm">{userInitials}</AvatarFallback>
+            )}
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
