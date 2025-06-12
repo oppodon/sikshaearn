@@ -38,95 +38,140 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: `Withdrawal is already ${withdrawal.status}` }, { status: 400 })
     }
 
-    // Start a session for transaction
-    const mongoSession = await mongoose.startSession()
-    mongoSession.startTransaction()
-
+    // Try with transactions first, fall back to non-transactional if not supported
     try {
-      if (action === "approve") {
-        if (!transactionId) {
-          return NextResponse.json({ message: "Transaction ID is required for approval" }, { status: 400 })
-        }
+      const mongoSession = await mongoose.startSession()
+      mongoSession.startTransaction()
 
-        console.log(`✅ Approving withdrawal ${withdrawalId} for ₹${withdrawal.amount}`)
-
-        // Update withdrawal status
-        withdrawal.status = "completed"
-        withdrawal.processedAt = new Date()
-        withdrawal.processedBy = session.user.id
-        withdrawal.transactionId = transactionId
-
-        await withdrawal.save({ session: mongoSession })
-
-        // Update user's balance - move from processing to withdrawn
-        const balance = await Balance.findOne({ user: withdrawal.user._id }).session(mongoSession)
-
-        if (balance) {
-          const processingAmount = Number(balance.processing) || 0
-          const withdrawnAmount = Number(balance.withdrawn) || 0
-
-          balance.processing = Math.max(0, processingAmount - withdrawal.amount)
-          balance.withdrawn = withdrawnAmount + withdrawal.amount
-          balance.lastSyncedAt = new Date()
-
-          await balance.save({ session: mongoSession })
-
-          console.log(`💰 Updated balance - Processing: ₹${balance.processing}, Withdrawn: ₹${balance.withdrawn}`)
-        }
-
-        console.log(`✅ Withdrawal approved successfully`)
-      } else if (action === "reject") {
-        if (!rejectionReason) {
-          return NextResponse.json({ message: "Rejection reason is required" }, { status: 400 })
-        }
-
-        console.log(`❌ Rejecting withdrawal ${withdrawalId}: ${rejectionReason}`)
-
-        // Update withdrawal status
-        withdrawal.status = "rejected"
-        withdrawal.processedAt = new Date()
-        withdrawal.processedBy = session.user.id
-        withdrawal.rejectionReason = rejectionReason
-
-        await withdrawal.save({ session: mongoSession })
-
-        // Update user's balance - move from processing back to available
-        const balance = await Balance.findOne({ user: withdrawal.user._id }).session(mongoSession)
-
-        if (balance) {
-          const processingAmount = Number(balance.processing) || 0
-          const availableAmount = Number(balance.available) || 0
-
-          balance.processing = Math.max(0, processingAmount - withdrawal.amount)
-          balance.available = availableAmount + withdrawal.amount
-          balance.lastSyncedAt = new Date()
-
-          await balance.save({ session: mongoSession })
-
-          console.log(`💰 Restored balance - Available: ₹${balance.available}, Processing: ₹${balance.processing}`)
-        }
-
-        console.log(`❌ Withdrawal rejected successfully`)
+      try {
+        await processWithdrawal(withdrawal, action, transactionId, rejectionReason, session.user.id, mongoSession)
+        await mongoSession.commitTransaction()
+        console.log("✅ Processed with transactions")
+      } catch (error) {
+        await mongoSession.abortTransaction()
+        throw error
+      } finally {
+        mongoSession.endSession()
       }
-
-      await mongoSession.commitTransaction()
-
-      return NextResponse.json({
-        message: `Withdrawal ${action === "approve" ? "approved" : "rejected"} successfully`,
-        withdrawal: {
-          id: withdrawal._id,
-          status: withdrawal.status,
-          processedAt: withdrawal.processedAt,
-        },
-      })
-    } catch (error) {
-      await mongoSession.abortTransaction()
-      throw error
-    } finally {
-      mongoSession.endSession()
+    } catch (error: any) {
+      // If transaction fails due to replica set requirement, fall back to non-transactional
+      if (error.code === 20 || error.codeName === "IllegalOperation") {
+        console.log("⚠️ Transactions not supported, falling back to non-transactional processing")
+        await processWithdrawal(withdrawal, action, transactionId, rejectionReason, session.user.id, null)
+      } else {
+        throw error
+      }
     }
+
+    return NextResponse.json({
+      message: `Withdrawal ${action === "approve" ? "approved" : "rejected"} successfully`,
+      withdrawal: {
+        id: withdrawal._id,
+        status: withdrawal.status,
+        processedAt: withdrawal.processedAt,
+      },
+    })
   } catch (error) {
     console.error("❌ Error processing withdrawal:", error)
     return NextResponse.json({ message: "Failed to process withdrawal" }, { status: 500 })
+  }
+}
+
+async function processWithdrawal(
+  withdrawal: any,
+  action: string,
+  transactionId: string,
+  rejectionReason: string,
+  userId: string,
+  mongoSession: any,
+) {
+  if (action === "approve") {
+    if (!transactionId) {
+      throw new Error("Transaction ID is required for approval")
+    }
+
+    console.log(`✅ Approving withdrawal ${withdrawal._id} for ₹${withdrawal.amount}`)
+
+    // Update withdrawal status
+    withdrawal.status = "completed"
+    withdrawal.processedAt = new Date()
+    withdrawal.processedBy = userId
+    withdrawal.transactionId = transactionId
+
+    if (mongoSession) {
+      await withdrawal.save({ session: mongoSession })
+    } else {
+      await withdrawal.save()
+    }
+
+    // Update user's balance - move from processing to withdrawn
+    const balanceQuery = mongoSession
+      ? Balance.findOne({ user: withdrawal.user._id }).session(mongoSession)
+      : Balance.findOne({ user: withdrawal.user._id })
+
+    const balance = await balanceQuery
+
+    if (balance) {
+      const processingAmount = Number(balance.processing) || 0
+      const withdrawnAmount = Number(balance.withdrawn) || 0
+
+      balance.processing = Math.max(0, processingAmount - withdrawal.amount)
+      balance.withdrawn = withdrawnAmount + withdrawal.amount
+      balance.lastSyncedAt = new Date()
+
+      if (mongoSession) {
+        await balance.save({ session: mongoSession })
+      } else {
+        await balance.save()
+      }
+
+      console.log(`💰 Updated balance - Processing: ₹${balance.processing}, Withdrawn: ₹${balance.withdrawn}`)
+    }
+
+    console.log(`✅ Withdrawal approved successfully`)
+  } else if (action === "reject") {
+    if (!rejectionReason) {
+      throw new Error("Rejection reason is required")
+    }
+
+    console.log(`❌ Rejecting withdrawal ${withdrawal._id}: ${rejectionReason}`)
+
+    // Update withdrawal status
+    withdrawal.status = "rejected"
+    withdrawal.processedAt = new Date()
+    withdrawal.processedBy = userId
+    withdrawal.rejectionReason = rejectionReason
+
+    if (mongoSession) {
+      await withdrawal.save({ session: mongoSession })
+    } else {
+      await withdrawal.save()
+    }
+
+    // Update user's balance - move from processing back to available
+    const balanceQuery = mongoSession
+      ? Balance.findOne({ user: withdrawal.user._id }).session(mongoSession)
+      : Balance.findOne({ user: withdrawal.user._id })
+
+    const balance = await balanceQuery
+
+    if (balance) {
+      const processingAmount = Number(balance.processing) || 0
+      const availableAmount = Number(balance.available) || 0
+
+      balance.processing = Math.max(0, processingAmount - withdrawal.amount)
+      balance.available = availableAmount + withdrawal.amount
+      balance.lastSyncedAt = new Date()
+
+      if (mongoSession) {
+        await balance.save({ session: mongoSession })
+      } else {
+        await balance.save()
+      }
+
+      console.log(`💰 Restored balance - Available: ₹${balance.available}, Processing: ₹${balance.processing}`)
+    }
+
+    console.log(`❌ Withdrawal rejected successfully`)
   }
 }
