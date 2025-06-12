@@ -101,7 +101,8 @@ function ModernProfileHeader({ user, userPackages }: { user: any; userPackages: 
   }, [user])
 
   // Get the most recent active package
-  const activePackage = userPackages.find((pkg) => pkg.isActive) || userPackages[0]
+  const activePackage =
+    userPackages && userPackages.length > 0 ? userPackages.find((pkg) => pkg.isActive) || userPackages[0] : null
 
   return (
     <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 text-white shadow-2xl h-40">
@@ -550,10 +551,46 @@ export default function ModernDashboardPage() {
 
   const fetchUserPackages = async () => {
     try {
+      // First try to get packages from user courses API which has enrollment data
+      const coursesResponse = await fetch("/api/user/courses")
+      if (coursesResponse.ok) {
+        const coursesData = await coursesResponse.json()
+        console.log("Courses data:", coursesData)
+
+        if (coursesData.enrollments && coursesData.enrollments.length > 0) {
+          // Extract unique packages from enrollments
+          const packagesMap = new Map()
+
+          coursesData.enrollments.forEach((enrollment: any) => {
+            if (enrollment.package && enrollment.package._id) {
+              const packageId = enrollment.package._id.toString()
+              if (!packagesMap.has(packageId)) {
+                packagesMap.set(packageId, {
+                  _id: enrollment.package._id,
+                  package: enrollment.package,
+                  isActive: enrollment.isActive,
+                  startDate: enrollment.startDate,
+                  endDate: enrollment.endDate,
+                  courses: enrollment.courses || [],
+                  progress: enrollment.progress || 0,
+                  enrollmentId: enrollment._id,
+                })
+              }
+            }
+          })
+
+          const packages = Array.from(packagesMap.values())
+          console.log("Extracted packages:", packages)
+          setUserPackages(packages)
+          return
+        }
+      }
+
+      // Fallback to admin API
       const response = await fetch(`/api/admin/users/${session?.user?.id}/packages`)
       if (response.ok) {
         const data = await response.json()
-        console.log("User packages data:", data)
+        console.log("Admin packages data:", data)
         setUserPackages(data.packages || [])
       } else {
         console.error("Failed to fetch user packages:", response.status)
@@ -775,6 +812,7 @@ export default function ModernDashboardPage() {
         {/* User Packages Section - Moved below earnings cards */}
         <UserPackagesSection userPackages={userPackages} />
 
+
         {/* Quick Actions */}
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           <Link href="/dashboard/affiliate-link">
@@ -851,7 +889,7 @@ export default function ModernDashboardPage() {
               </div>
               Recent Courses
               <Badge className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-0">
-                {enrolledCourses.length} Active
+                {enrolledCourses.length} Courses
               </Badge>
             </CardTitle>
             <CardDescription className="text-gray-600 text-base">Continue your learning journey</CardDescription>

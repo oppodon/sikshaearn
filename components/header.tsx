@@ -13,10 +13,19 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import { Bell, Menu, Search, Sun, Moon } from "lucide-react"
+import { Bell, Menu, Search, Sparkles, Sun, Moon } from "lucide-react"
 import { useSidebar } from "@/components/ui/sidebar"
 import { useTheme } from "next-themes"
-import Image from "next/image"
+
+const getInitials = (name?: string) => {
+  if (!name) return "U"
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2)
+}
 
 export function DashboardHeader() {
   const pathname = usePathname()
@@ -49,7 +58,10 @@ export function DashboardHeader() {
         {/* Brand Logo */}
         <Link href="/dashboard" className="flex items-center gap-2 group">
           <div className="relative">
-            <Image src="/logo.png" alt="SikshaEarn Logo" width={32} height={32} className="w-8 h-8 object-contain" />
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg blur opacity-75 group-hover:opacity-100 transition-opacity"></div>
+            <div className="relative bg-gradient-to-r from-blue-600 to-purple-600 p-2 rounded-lg">
+              <Sparkles className="h-5 w-5 text-white" />
+            </div>
           </div>
           <div className="hidden sm:block">
             <span className="text-xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent">

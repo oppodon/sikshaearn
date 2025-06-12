@@ -26,19 +26,42 @@ export default function ProfilePage() {
     country: "",
     city: "",
     address: "",
+    bio: "",
+    username: "",
   })
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const [userData, setUserData] = useState<any>(null)
+
+  const fetchUserData = async () => {
+    try {
+      const response = await fetch("/api/user/profile")
+      if (response.ok) {
+        const data = await response.json()
+        console.log("Fetched user profile:", data)
+
+        setUserData(data)
+        setFormData({
+          name: data.name || "",
+          email: data.email || "",
+          phone: data.phone || "",
+          country: data.country || "",
+          city: data.city || "",
+          address: data.address || "",
+          bio: data.bio || "",
+          username: data.username || "",
+        })
+      } else {
+        console.error("Failed to fetch user profile")
+      }
+    } catch (error) {
+      console.error("Error fetching user profile:", error)
+    }
+  }
+
   useEffect(() => {
     if (session?.user) {
-      setFormData({
-        name: session.user.name || "",
-        email: session.user.email || "",
-        phone: (session.user as any).phone || "",
-        country: (session.user as any).country || "",
-        city: (session.user as any).city || "",
-        address: (session.user as any).address || "",
-      })
+      fetchUserData()
     }
   }, [session])
 
@@ -82,14 +105,8 @@ export default function ProfilePage() {
         throw new Error(data.error || "Failed to upload avatar")
       }
 
-      // Update session with new image
-      await update({
-        ...session,
-        user: {
-          ...session?.user,
-          image: data.imageUrl,
-        },
-      })
+      // Fetch updated user data instead of updating session
+      await fetchUserData()
 
       toast.success("Avatar updated successfully!")
     } catch (error: any) {
@@ -117,14 +134,8 @@ export default function ProfilePage() {
         throw new Error(data.error || "Failed to remove avatar")
       }
 
-      // Update session to remove image
-      await update({
-        ...session,
-        user: {
-          ...session?.user,
-          image: null,
-        },
-      })
+      // Fetch updated user data instead of updating session
+      await fetchUserData()
 
       toast.success("Avatar removed successfully!")
     } catch (error: any) {
@@ -140,6 +151,8 @@ export default function ProfilePage() {
     setIsLoading(true)
 
     try {
+      console.log("Submitting profile data:", formData)
+
       const response = await fetch("/api/user/profile", {
         method: "PUT",
         headers: {
@@ -149,6 +162,7 @@ export default function ProfilePage() {
       })
 
       const data = await response.json()
+      console.log("Profile update response:", data)
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to update profile")
@@ -161,6 +175,12 @@ export default function ProfilePage() {
           ...session?.user,
           name: formData.name,
           email: formData.email,
+          phone: formData.phone,
+          country: formData.country,
+          city: formData.city,
+          address: formData.address,
+          bio: formData.bio,
+          username: formData.username,
         },
       })
 
@@ -214,12 +234,12 @@ export default function ProfilePage() {
             <div className="relative">
               <Avatar className="h-24 w-24 border-4 border-white shadow-lg">
                 <AvatarImage
-                  src={session.user.image || "/placeholder.svg"}
-                  alt={session.user.name || "User"}
+                  src={userData?.image || "/placeholder.svg"}
+                  alt={userData?.name || "User"}
                   className="object-cover"
                 />
                 <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-2xl font-bold">
-                  {getInitials(session.user.name || "User")}
+                  {getInitials(userData?.name || "User")}
                 </AvatarFallback>
               </Avatar>
               <div className="absolute -bottom-2 -right-2 flex gap-1">
@@ -232,7 +252,7 @@ export default function ProfilePage() {
                 >
                   {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
                 </Button>
-                {session.user.image && (
+                {userData?.image && (
                   <Button
                     size="sm"
                     variant="destructive"
@@ -247,8 +267,8 @@ export default function ProfilePage() {
               <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
             </div>
             <div className="flex-1">
-              <CardTitle className="text-2xl font-bold">{session.user.name}</CardTitle>
-              <CardDescription className="text-lg">{session.user.email}</CardDescription>
+              <CardTitle className="text-2xl font-bold">{userData?.name || session?.user?.name}</CardTitle>
+              <CardDescription className="text-lg">{userData?.email || session?.user?.email}</CardDescription>
               <div className="flex items-center gap-2 mt-2">
                 <Badge variant="secondary" className="bg-green-100 text-green-800">
                   <Shield className="h-3 w-3 mr-1" />
@@ -300,6 +320,16 @@ export default function ProfilePage() {
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  name="username"
+                  value={formData.username}
+                  onChange={handleInputChange}
+                  placeholder="Enter your username"
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number</Label>
                 <Input
                   id="phone"
@@ -327,6 +357,17 @@ export default function ProfilePage() {
                   value={formData.city}
                   onChange={handleInputChange}
                   placeholder="Enter your city"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bio">Bio</Label>
+                <Textarea
+                  id="bio"
+                  name="bio"
+                  value={formData.bio}
+                  onChange={handleInputChange}
+                  placeholder="Tell us about yourself"
+                  rows={3}
                 />
               </div>
             </div>

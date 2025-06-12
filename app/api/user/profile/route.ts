@@ -41,7 +41,9 @@ export async function PUT(req: NextRequest) {
 
     const userId = session.user.id
     const body = await req.json()
-    const { name, email, bio, country, city, phone, username } = body
+    const { name, email, bio, country, city, phone, username, address } = body
+
+    console.log("Profile update request:", body)
 
     // Validate required fields
     if (!name || !email) {
@@ -78,8 +80,11 @@ export async function PUT(req: NextRequest) {
     if (city !== undefined) user.city = city
     if (phone !== undefined) user.phone = phone
     if (username !== undefined) user.username = username
+    if (address !== undefined) user.address = address
 
     await user.save()
+
+    console.log("Profile updated successfully:", user)
 
     return NextResponse.json({
       message: "Profile updated successfully",
@@ -92,6 +97,7 @@ export async function PUT(req: NextRequest) {
         city: user.city,
         phone: user.phone,
         username: user.username,
+        address: user.address,
         image: user.image,
       },
     })
