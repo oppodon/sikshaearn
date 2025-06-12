@@ -812,6 +812,26 @@ export default function ModernDashboardPage() {
         {/* User Packages Section - Moved below earnings cards */}
         <UserPackagesSection userPackages={userPackages} />
 
+        {/* Debug info - remove in production */}
+        {process.env.NODE_ENV === "development" && (
+          <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg text-sm">
+            <h3 className="font-bold mb-2">Debug Info:</h3>
+            <p>User Packages Count: {userPackages?.length || 0}</p>
+            <p>Enrolled Courses Count: {enrolledCourses?.length || 0}</p>
+            <p>Unique Package IDs: {new Set(enrolledCourses.map((c: any) => c.packageId)).size}</p>
+            <div className="mt-2">
+              <h4 className="font-semibold">Package Titles:</h4>
+              <ul className="list-disc list-inside">
+                {Array.from(new Set(enrolledCourses.map((c: any) => c.packageTitle))).map((title: string) => (
+                  <li key={title}>{title}</li>
+                ))}
+              </ul>
+            </div>
+            <pre className="mt-2 bg-white p-2 rounded overflow-auto max-h-40 text-xs">
+              {JSON.stringify(userPackages.slice(0, 2), null, 2)}
+            </pre>
+          </div>
+        )}
 
         {/* Quick Actions */}
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">

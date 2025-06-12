@@ -47,7 +47,11 @@ export const authOptions: NextAuthOptions = {
           throw new Error("No user found with this email")
         }
 
-        // Remove email verification check - users can login immediately
+        // Check if user is banned
+        if (user.status === "banned") {
+          throw new Error("Your account has been banned. Please contact support for assistance.")
+        }
+
         const isPasswordValid = await compare(credentials.password, user.password || "")
 
         if (!isPasswordValid) {
@@ -60,6 +64,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           image: user.image,
           role: user.role,
+          status: user.status,
         }
       },
     }),
@@ -100,6 +105,11 @@ export const authOptions: NextAuthOptions = {
               lastLogin: new Date(),
             })
           } else {
+            // Check if Google user is banned
+            if (existingUser.status === "banned") {
+              return false // This will prevent sign in
+            }
+
             await User.findByIdAndUpdate(existingUser._id, {
               image: user.image,
               lastLogin: new Date(),
@@ -109,6 +119,7 @@ export const authOptions: NextAuthOptions = {
 
           user.id = existingUser._id.toString()
           user.role = existingUser.role
+          user.status = existingUser.status
           user.name = existingUser.name
           user.email = existingUser.email
           user.image = existingUser.image
@@ -128,6 +139,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id
         token.role = user.role || "user"
+        token.status = user.status || "active"
         token.name = user.name
         token.email = user.email
         token.picture = user.image
@@ -154,6 +166,7 @@ export const authOptions: NextAuthOptions = {
           if (dbUser) {
             token.id = dbUser._id.toString()
             token.role = dbUser.role
+            token.status = dbUser.status
             token.name = dbUser.name
             token.picture = dbUser.image
           }
@@ -162,8 +175,8 @@ export const authOptions: NextAuthOptions = {
         }
       }
 
-      // Periodically refresh user data from database (every 24 hours)
-      if (token.id && (!token.lastRefresh || Date.now() - token.lastRefresh > 24 * 60 * 60 * 1000)) {
+      // Always refresh user status from database to check for bans
+      if (token.id) {
         try {
           await dbConnect()
           const dbUser = await User.findById(token.id).lean()
@@ -171,6 +184,7 @@ export const authOptions: NextAuthOptions = {
             token.name = dbUser.name
             token.picture = dbUser.image
             token.role = dbUser.role
+            token.status = dbUser.status
             token.lastRefresh = Date.now()
           }
         } catch (error) {
@@ -185,6 +199,7 @@ export const authOptions: NextAuthOptions = {
       if (token && token.id) {
         session.user.id = token.id as string
         session.user.role = token.role as string
+        session.user.status = token.status as string
         session.user.name = token.name as string
         session.user.email = token.email as string
         session.user.image = token.picture as string

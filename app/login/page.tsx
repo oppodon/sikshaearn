@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, EyeOff, Loader2, Sparkles, ArrowLeft } from "lucide-react"
+import { Eye, EyeOff, Loader2, Sparkles, ArrowLeft, AlertTriangle } from "lucide-react"
 import Image from "next/image"
 
 const loginSchema = z.object({
@@ -49,7 +49,12 @@ export default function LoginPage() {
       })
 
       if (result?.error) {
-        setError(result.error)
+        // Check if it's a ban-related error
+        if (result.error.includes("banned")) {
+          setError("Your account has been banned. Please contact support for assistance.")
+        } else {
+          setError(result.error)
+        }
         return
       }
 
@@ -60,6 +65,8 @@ export default function LoginPage() {
       setIsLoading(false)
     }
   }
+
+  const isBanError = error?.includes("banned")
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex flex-col lg:flex-row overflow-x-hidden">
@@ -149,8 +156,14 @@ export default function LoginPage() {
 
           {/* Error Alert */}
           {error && (
-            <Alert variant="destructive" className="border-red-200 bg-red-50">
-              <AlertDescription className="text-red-800 text-sm sm:text-base">{error}</AlertDescription>
+            <Alert variant="destructive" className={`border-red-200 ${isBanError ? "bg-red-100" : "bg-red-50"}`}>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-red-800 text-sm sm:text-base">
+                {error}
+                {isBanError && (
+                  <div className="mt-2 text-xs">If you believe this is a mistake, please contact our support team.</div>
+                )}
+              </AlertDescription>
             </Alert>
           )}
 

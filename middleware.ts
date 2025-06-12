@@ -42,13 +42,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url))
   }
 
+  // If user is banned and trying to access protected routes, redirect to banned page
+  if (isAuthenticated && token?.status === "banned" && isProtectedRoute) {
+    return NextResponse.redirect(new URL("/banned", request.url))
+  }
+
   // If the route is admin-only and the user is not an admin, redirect to dashboard
   if (isAdminRoute && token?.role !== "admin") {
     return NextResponse.redirect(new URL("/dashboard", request.url))
   }
 
   // If the user is authenticated and trying to access auth routes, redirect to dashboard
-  if (isAuthenticated && isAuthRoute) {
+  if (isAuthenticated && isAuthRoute && token?.status !== "banned") {
     return NextResponse.redirect(new URL("/dashboard", request.url))
   }
 
