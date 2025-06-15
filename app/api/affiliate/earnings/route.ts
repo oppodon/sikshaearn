@@ -17,23 +17,28 @@ export async function GET() {
 
     const userId = session.user.id
 
-    // Get all commission earnings with details
+    console.log(`📊 Fetching earnings for user: ${userId}`)
+
+    // Get all commission earnings with details - remove category filter for now
     const earnings = await BalanceTransaction.find({
       user: userId,
       type: "credit",
-      category: "commission",
+      status: "completed",
+      $or: [{ category: "commission" }, { description: { $regex: /commission|referral/i } }],
     })
       .sort({ createdAt: -1 })
       .lean()
 
+    console.log(`📊 Found ${earnings.length} commission transactions`)
+
     // Format earnings with detailed information
     const formattedEarnings = earnings.map((earning) => ({
       id: earning._id,
-      amount: earning.amount,
-      tier: earning.tier,
+      amount: Number(earning.amount) || 0,
+      tier: earning.metadata?.tier || 1,
       description: earning.description,
-      packageTitle: earning.metadata?.packageTitle || "Unknown Package",
-      customerName: earning.metadata?.customerName || "Unknown Customer",
+      packageTitle: earning.metadata?.packageTitle || "Package Purchase",
+      customerName: earning.metadata?.customerName || "Customer",
       customerEmail: earning.metadata?.customerEmail || "",
       commissionRate: earning.metadata?.commissionRate || 0,
       date: earning.createdAt,
@@ -41,9 +46,13 @@ export async function GET() {
     }))
 
     // Calculate totals
-    const totalEarnings = earnings.reduce((sum, earning) => sum + earning.amount, 0)
-    const tier1Earnings = earnings.filter((e) => e.tier === 1).reduce((sum, earning) => sum + earning.amount, 0)
-    const tier2Earnings = earnings.filter((e) => e.tier === 2).reduce((sum, earning) => sum + earning.amount, 0)
+    const totalEarnings = formattedEarnings.reduce((sum, earning) => sum + earning.amount, 0)
+    const tier1Earnings = formattedEarnings
+      .filter((e) => e.tier === 1)
+      .reduce((sum, earning) => sum + earning.amount, 0)
+    const tier2Earnings = formattedEarnings
+      .filter((e) => e.tier === 2)
+      .reduce((sum, earning) => sum + earning.amount, 0)
 
     console.log(`📊 Earnings summary for user ${userId}:`, {
       total: totalEarnings,

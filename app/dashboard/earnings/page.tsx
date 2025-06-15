@@ -32,30 +32,63 @@ export default function EarningsPage() {
   const [earnings, setEarnings] = useState<Earning[]>([])
   const [summary, setSummary] = useState<EarningsSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
-  const fetchEarnings = async () => {
+  const fetchEarnings = async (showRefreshLoader = false) => {
     try {
-      setLoading(true)
-      const response = await fetch("/api/affiliate/earnings")
+      if (showRefreshLoader) {
+        setRefreshing(true)
+      } else {
+        setLoading(true)
+      }
+
+      console.log("🔄 Fetching earnings data...")
+
+      const response = await fetch("/api/affiliate/earnings", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        cache: "no-store", // Ensure fresh data
+      })
+
       const data = await response.json()
 
       if (response.ok) {
-        setEarnings(data.earnings)
-        setSummary(data.summary)
+        console.log("✅ Earnings data received:", data)
+        setEarnings(data.earnings || [])
+        setSummary(
+          data.summary || {
+            totalEarnings: 0,
+            tier1Earnings: 0,
+            tier2Earnings: 0,
+            totalTransactions: 0,
+          },
+        )
+
+        if (showRefreshLoader) {
+          toast.success("Earnings data refreshed successfully!")
+        }
       } else {
+        console.error("❌ Error response:", data)
         toast.error(data.error || "Failed to fetch earnings")
       }
     } catch (error) {
-      console.error("Error fetching earnings:", error)
+      console.error("❌ Error fetching earnings:", error)
       toast.error("Failed to fetch earnings")
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }
 
   useEffect(() => {
     fetchEarnings()
   }, [])
+
+  const handleRefresh = () => {
+    fetchEarnings(true)
+  }
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-IN", {
@@ -132,9 +165,9 @@ export default function EarningsPage() {
             <h1 className="text-3xl font-bold text-gray-900">Earnings Details</h1>
             <p className="text-gray-600">Track your commission earnings from referrals</p>
           </div>
-          <Button onClick={fetchEarnings} variant="outline" size="sm" className="border-gray-300">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
+          <Button onClick={handleRefresh} variant="outline" size="sm" className="border-gray-300" disabled={refreshing}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? "Refreshing..." : "Refresh"}
           </Button>
         </div>
 
@@ -204,7 +237,11 @@ export default function EarningsPage() {
               <div className="text-center py-12">
                 <DollarSign className="h-16 w-16 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No earnings yet</h3>
-                <p className="text-gray-600">Start referring customers to earn commissions!</p>
+                <p className="text-gray-600 mb-4">Start referring customers to earn commissions!</p>
+                <Button onClick={handleRefresh} variant="outline" size="sm">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Check for Updates
+                </Button>
               </div>
             ) : (
               <div className="space-y-4">

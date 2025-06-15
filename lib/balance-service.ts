@@ -1,4 +1,4 @@
-import mongoose from "mongoose"
+import type mongoose from "mongoose"
 import { ensureModelsRegistered, Balance, BalanceTransaction } from "@/lib/models"
 
 export class BalanceService {
@@ -55,35 +55,23 @@ export class BalanceService {
     customerEmail?: string
     commissionRate?: number
   }) {
-    let session: mongoose.ClientSession | null = null
-
     try {
       ensureModelsRegistered()
 
       console.log(`💰 Starting commission addition: ₹${amount} to user ${userId} (Tier ${tier})`)
 
-      // Start session for transaction
-      session = await mongoose.startSession()
-      await session.startTransaction()
-
-      // Get or create balance
-      let balance = await Balance.findOne({ user: userId }).session(session)
+      // Get or create balance (without session)
+      let balance = await Balance.findOne({ user: userId })
 
       if (!balance) {
-        balance = await Balance.create(
-          [
-            {
-              user: userId,
-              available: 0,
-              pending: 0,
-              processing: 0,
-              withdrawn: 0,
-              lastSyncedAt: new Date(),
-            },
-          ],
-          { session },
-        )
-        balance = balance[0]
+        balance = await Balance.create({
+          user: userId,
+          available: 0,
+          pending: 0,
+          processing: 0,
+          withdrawn: 0,
+          lastSyncedAt: new Date(),
+        })
         console.log("✅ Created new balance for user:", userId)
       }
 
@@ -96,53 +84,40 @@ export class BalanceService {
       balance.lastSyncedAt = new Date()
 
       // Save the updated balance
-      await balance.save({ session })
+      await balance.save()
 
       console.log(`📊 Balance after: ₹${balance.available}`)
 
       // Create balance transaction record
-      const balanceTransaction = await BalanceTransaction.create(
-        [
-          {
-            user: userId,
-            type: "credit",
-            amount,
-            description: `${tier === 1 ? "Direct" : "Second-tier"} referral commission from ${packageTitle || "package purchase"}`,
-            status: "completed",
-            metadata: {
-              packageId,
-              packageTitle,
-              customerName,
-              customerEmail,
-              commissionRate,
-              tier,
-              transactionId,
-            },
-          },
-        ],
-        { session },
-      )
+      const balanceTransaction = await BalanceTransaction.create({
+        user: userId,
+        type: "credit",
+        category: "commission", // Add this line
+        amount,
+        description: `${tier === 1 ? "Direct" : "Second-tier"} referral commission from ${packageTitle || "package purchase"}`,
+        status: "completed",
+        metadata: {
+          packageId,
+          packageTitle,
+          customerName,
+          customerEmail,
+          commissionRate,
+          tier,
+          transactionId,
+        },
+      })
 
-      console.log(`📝 Balance transaction created: ${balanceTransaction[0]._id}`)
-
-      await session.commitTransaction()
+      console.log(`📝 Balance transaction created: ${balanceTransaction._id}`)
 
       console.log(`✅ Commission added successfully: ₹${amount} to user ${userId} (Tier ${tier})`)
 
       return {
         balance,
-        transaction: balanceTransaction[0],
+        transaction: balanceTransaction,
       }
     } catch (error) {
-      if (session) {
-        await session.abortTransaction()
-      }
       console.error("❌ Error adding commission:", error)
       throw error
-    } finally {
-      if (session) {
-        await session.endSession()
-      }
     }
   }
 
