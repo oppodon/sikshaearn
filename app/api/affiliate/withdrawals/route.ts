@@ -3,7 +3,6 @@ import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import dbConnect from "@/lib/mongodb"
 import { ensureModelsRegistered, Withdrawal, Balance, BalanceTransaction, User, KYC } from "@/lib/models"
-import mongoose from "mongoose"
 
 export async function GET(req: NextRequest) {
   try {
@@ -127,12 +126,8 @@ export async function POST(req: NextRequest) {
     // Get user details for notification
     const user = await User.findById(session.user.id).select("name email").lean()
 
-    // Start a session for transaction
-    const mongoSession = await mongoose.startSession()
-    mongoSession.startTransaction()
-
     try {
-      // Create withdrawal request
+      // Create withdrawal request first
       const withdrawal = new Withdrawal({
         user: session.user.id,
         amount,
@@ -141,10 +136,10 @@ export async function POST(req: NextRequest) {
         status: "pending",
       })
 
-      await withdrawal.save({ session: mongoSession })
+      await withdrawal.save()
 
       // Update user balance - move from available to processing
-      await Balance.findOneAndUpdate(
+      const updatedBalance = await Balance.findOneAndUpdate(
         { user: session.user.id },
         {
           $inc: {
@@ -155,30 +150,28 @@ export async function POST(req: NextRequest) {
             lastSyncedAt: new Date(),
           },
         },
-        { session: mongoSession },
+        { new: true },
       )
+
+      if (!updatedBalance) {
+        // If balance update failed, delete the withdrawal request
+        await Withdrawal.findByIdAndDelete(withdrawal._id)
+        return NextResponse.json({ message: "Failed to update balance. Please try again." }, { status: 500 })
+      }
 
       // Create balance transaction record
-      await BalanceTransaction.create(
-        [
-          {
-            user: session.user.id,
-            type: "debit",
-            amount,
-            description: `Withdrawal request - ${method}`,
-            status: "pending",
-            metadata: {
-              withdrawalId: withdrawal._id,
-              method,
-              accountDetails,
-            },
-          },
-        ],
-        { session: mongoSession },
-      )
-
-      await mongoSession.commitTransaction()
-      mongoSession.endSession()
+      await BalanceTransaction.create({
+        user: session.user.id,
+        type: "debit",
+        amount,
+        description: `Withdrawal request - ${method}`,
+        status: "pending",
+        metadata: {
+          withdrawalId: withdrawal._id,
+          method,
+          accountDetails,
+        },
+      })
 
       console.log(`✅ Withdrawal request created: ${withdrawal._id} for ₹${amount}`)
 
@@ -193,9 +186,8 @@ export async function POST(req: NextRequest) {
         },
       })
     } catch (error) {
-      await mongoSession.abortTransaction()
-      mongoSession.endSession()
-      throw error
+      console.error("❌ Error in withdrawal process:", error)
+      return NextResponse.json({ message: "Failed to create withdrawal request" }, { status: 500 })
     }
   } catch (error) {
     console.error("❌ Error creating withdrawal request:", error)
